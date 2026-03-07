@@ -1,0 +1,5 @@
+{
+  "name": "StockMaster MY",
+  "description": "A professional inventory management system for Malaysian businesses, featuring full CRUD operations, stock tracking, and secure admin access.",
+  "requestFramePermissions": []
+}
