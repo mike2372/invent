@@ -189,6 +189,37 @@ async function startServer() {
     }
   });
 
+  app.get('/api/users', (req, res) => {
+    try {
+      const users = db.prepare('SELECT id, username, role, full_name, email, phone FROM users WHERE role = ?').all('client');
+      res.json(users);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/users', (req, res) => {
+    const { username, password, full_name, email, phone, role } = req.body;
+    try {
+      const info = db.prepare(
+        'INSERT INTO users (username, password, full_name, email, phone, role) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(username, password, full_name, email, phone, role || 'client');
+      res.json({ success: true, id: info.lastInsertRowid });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/users/:id', (req, res) => {
+    const { id } = req.params;
+    try {
+      db.prepare('DELETE FROM users WHERE id = ?').run(id);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   // Inventory API
   app.get('/api/products', (req, res) => {
     const products = db.prepare('SELECT * FROM products ORDER BY updated_at DESC').all();
