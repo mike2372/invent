@@ -27,7 +27,9 @@ import {
   Truck,
   Calendar,
   User as UserIcon,
-  ClipboardList
+  ClipboardList,
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Product, User, StockHistory, Order, OrderItem } from './types';
@@ -130,6 +132,9 @@ export default function App() {
   const [isCancellationModalOpen, setIsCancellationModalOpen] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [orderToCancel, setOrderToCancel] = useState<number | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<User | null>(null);
+  const [deleteClientError, setDeleteClientError] = useState('');
+  const [isConfirmClearOrders, setIsConfirmClearOrders] = useState(false);
 
   const openProfileEdit = () => {
     setProfileFormData({
@@ -405,6 +410,30 @@ export default function App() {
     localStorage.removeItem('stockmaster_user');
   };
 
+  const handleGuestLogin = async (role: 'admin' | 'client') => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/guest-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser(data.user);
+        localStorage.setItem('stockmaster_user', JSON.stringify(data.user));
+      } else {
+        setError(data.message || 'Guest login failed');
+      }
+    } catch (err) {
+      setError('Connection failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -558,6 +587,42 @@ export default function App() {
     }
   };
 
+  const handleClearOrders = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/orders/all', { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setIsConfirmClearOrders(false);
+        fetchOrders();
+      }
+    } catch (err) {
+      console.error('Failed to clear orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteClient = async () => {
+    if (!clientToDelete) return;
+    setLoading(true);
+    setDeleteClientError('');
+    try {
+      const res = await fetch(`/api/users/${clientToDelete.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setClientToDelete(null);
+        fetchClients();
+      } else {
+        setDeleteClientError(data.error || 'Failed to delete client');
+      }
+    } catch (err) {
+      setDeleteClientError('Connection failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
     try {
@@ -684,6 +749,40 @@ export default function App() {
             <p className="text-center text-xs text-neutral-400">
               {t('defaultCredentials')}
             </p>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-neutral-200"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-neutral-500">{t('orSignInAs')}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => handleGuestLogin('admin')}
+                disabled={loading}
+                className="flex flex-col items-center gap-2 p-4 rounded-xl border border-neutral-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all group disabled:opacity-50"
+              >
+                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <ShieldCheck size={20} />
+                </div>
+                <span className="text-xs font-bold text-neutral-700">{t('guestAdmin')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGuestLogin('client')}
+                disabled={loading}
+                className="flex flex-col items-center gap-2 p-4 rounded-xl border border-neutral-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all group disabled:opacity-50"
+              >
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <UserCheck size={20} />
+                </div>
+                <span className="text-xs font-bold text-neutral-700">{t('guestClient')}</span>
+              </button>
+            </div>
           </div>
         </motion.div>
       </div>
@@ -1323,6 +1422,15 @@ export default function App() {
                 <p className="text-neutral-500">{t('manageOrders')}</p>
               </div>
               <div className="flex items-center gap-3">
+                {user.role === 'admin' && (
+                  <button
+                    onClick={() => setIsConfirmClearOrders(true)}
+                    className="border border-red-200 text-red-600 hover:bg-red-50 px-4 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all"
+                  >
+                    <Trash2 size={18} />
+                    Clear History
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setOrderFormData({ customer_name: '', delivery_date: '', items: [] });
@@ -1393,13 +1501,23 @@ export default function App() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => fetchOrderDetails(order.id)}
-                            className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm flex items-center gap-1 justify-end ml-auto"
-                          >
-                            {t('details')}
-                            <ChevronRight size={16} />
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => fetchOrderDetails(order.id)}
+                              className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm flex items-center gap-1"
+                            >
+                              {t('details')}
+                              <ChevronRight size={16} />
+                            </button>
+                            {user.role === 'client' && ['Pending', 'Processing'].includes(order.status) && (
+                              <button
+                                onClick={() => handleUpdateOrderStatus(order.id, 'Cancelled')}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors border border-red-100"
+                              >
+                                {t('cancelOrder')}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1500,11 +1618,9 @@ export default function App() {
                               <Edit2 size={18} />
                             </button>
                             <button
-                              onClick={async () => {
-                                if (confirm(t('deleteConfirm'))) {
-                                  await fetch(`/api/users/${client.id}`, { method: 'DELETE' });
-                                  fetchClients();
-                                }
+                              onClick={() => {
+                                setDeleteClientError('');
+                                setClientToDelete(client);
                               }}
                               className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             >
@@ -2724,6 +2840,105 @@ export default function App() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Client Confirmation Modal */}
+      <AnimatePresence>
+        {clientToDelete && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setClientToDelete(null); setDeleteClientError(''); }}
+              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 flex flex-col items-center gap-4 text-center">
+                <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center text-red-600">
+                  <Trash2 size={26} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-neutral-900 mb-1">{t('deleteConfirm')}</h2>
+                  <p className="text-sm text-neutral-500">
+                    This will permanently remove <span className="font-semibold text-neutral-700">{clientToDelete.full_name || clientToDelete.username}</span> and cannot be undone.
+                  </p>
+                </div>
+                {deleteClientError && (
+                  <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2 w-full text-left">{deleteClientError}</p>
+                )}
+                <div className="flex gap-3 w-full pt-2">
+                  <button
+                    onClick={() => { setClientToDelete(null); setDeleteClientError(''); }}
+                    className="flex-1 px-4 py-3 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
+                  >
+                    {t('cancel')}
+                  </button>
+                  <button
+                    onClick={handleDeleteClient}
+                    disabled={loading}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-red-100 disabled:opacity-50"
+                  >
+                    {loading ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Clear Orders Confirmation Modal */}
+      <AnimatePresence>
+        {isConfirmClearOrders && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsConfirmClearOrders(false)}
+              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 flex flex-col items-center gap-4 text-center">
+                <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center text-red-600">
+                  <Trash2 size={26} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-neutral-900 mb-1">Clear Order History</h2>
+                  <p className="text-sm text-neutral-500">
+                    This will permanently delete <span className="font-bold text-red-600">ALL</span> orders and order items. This action cannot be undone. Are you absolutely sure?
+                  </p>
+                </div>
+                <div className="flex gap-3 w-full pt-2">
+                  <button
+                    onClick={() => setIsConfirmClearOrders(false)}
+                    className="flex-1 px-4 py-3 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
+                  >
+                    {t('cancel')}
+                  </button>
+                  <button
+                    onClick={handleClearOrders}
+                    disabled={loading}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-red-100 disabled:opacity-50"
+                  >
+                    {loading ? 'Clearing...' : 'Clear All Orders'}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}

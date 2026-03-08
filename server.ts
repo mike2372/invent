@@ -38,16 +38,16 @@ db.exec(`
 
 try {
   db.exec('ALTER TABLE users ADD COLUMN role TEXT DEFAULT "admin"');
-} catch (e) {}
+} catch (e) { }
 try {
   db.exec('ALTER TABLE users ADD COLUMN full_name TEXT');
-} catch (e) {}
+} catch (e) { }
 try {
   db.exec('ALTER TABLE users ADD COLUMN email TEXT');
-} catch (e) {}
+} catch (e) { }
 try {
   db.exec('ALTER TABLE users ADD COLUMN phone TEXT');
-} catch (e) {}
+} catch (e) { }
 
 try {
   db.exec('ALTER TABLE products ADD COLUMN unit_of_measure TEXT DEFAULT "pcs"');
@@ -108,23 +108,23 @@ db.exec(`
 
 try {
   db.exec('ALTER TABLE products ADD COLUMN has_variations BOOLEAN DEFAULT 0');
-} catch (e) {}
+} catch (e) { }
 
 try {
   db.exec('ALTER TABLE order_items ADD COLUMN variation_id INTEGER');
-} catch (e) {}
+} catch (e) { }
 
 try {
   db.exec('ALTER TABLE stock_history ADD COLUMN variation_id INTEGER');
-} catch (e) {}
+} catch (e) { }
 
 try {
   db.exec('ALTER TABLE orders ADD COLUMN user_id INTEGER');
-} catch (e) {}
+} catch (e) { }
 
 try {
   db.exec('ALTER TABLE orders ADD COLUMN cancellation_reason TEXT');
-} catch (e) {}
+} catch (e) { }
 
 // Seed admin if not exists (password: admin123 - in a real app use hashing)
 const admin = db.prepare('SELECT * FROM users WHERE username = ?').get('admin');
@@ -134,13 +134,15 @@ if (!admin) {
   );
 }
 
-// Seed a client for testing
-const client = db.prepare('SELECT * FROM users WHERE username = ?').get('client');
-if (!client) {
-  db.prepare('INSERT INTO users (username, password, role, full_name, email) VALUES (?, ?, ?, ?, ?)').run(
-    'client', 'client123', 'client', 'John Doe', 'john@example.com'
-  );
-}
+// Remove the default test client (John Doe) if it exists
+try {
+  const defaultClient = db.prepare('SELECT * FROM users WHERE username = ? AND full_name = ?').get('client', 'John Doe') as any;
+  if (defaultClient) {
+    db.prepare('UPDATE orders SET user_id = NULL WHERE user_id = ?').run(defaultClient.id);
+    db.prepare('DELETE FROM users WHERE id = ?').run(defaultClient.id);
+    console.log('Removed default test client (John Doe)');
+  }
+} catch (e) { }
 
 async function startServer() {
   const app = express();
@@ -151,19 +153,55 @@ async function startServer() {
     const { username, password } = req.body;
     const user = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?').get(username, password) as any;
     if (user) {
-      res.json({ 
-        success: true, 
-        user: { 
-          id: user.id, 
-          username: user.username, 
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          username: user.username,
           role: user.role,
           full_name: user.full_name,
           email: user.email,
           phone: user.phone
-        } 
+        }
       });
     } else {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+  });
+
+  app.post('/api/guest-login', (req, res) => {
+    const { role } = req.body;
+    try {
+      let user = db.prepare('SELECT * FROM users WHERE role = ? LIMIT 1').get(role) as any;
+
+      if (!user) {
+        const info = db.prepare('INSERT INTO users (username, password, role, full_name) VALUES (?, ?, ?, ?)').run(
+          `guest_${role}_${Date.now()}`,
+          'guest_pass',
+          role,
+          `Guest ${role === 'admin' ? 'Admin' : 'Client'}`
+        );
+        user = {
+          id: info.lastInsertRowid,
+          username: `guest_${role}_${Date.now()}`,
+          role: role,
+          full_name: `Guest ${role === 'admin' ? 'Admin' : 'Client'}`
+        };
+      }
+
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          full_name: user.full_name,
+          email: user.email,
+          phone: user.phone
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: 'Failed to process guest login' });
     }
   });
 
@@ -213,10 +251,30 @@ async function startServer() {
   app.delete('/api/users/:id', (req, res) => {
     const { id } = req.params;
     try {
-      db.prepare('DELETE FROM users WHERE id = ?').run(id);
+      // Nullify user_id on any orders placed by this client first
+      // to avoid FOREIGN KEY constraint failure
+      const deleteTransaction = db.transaction(() => {
+        db.prepare('UPDATE orders SET user_id = NULL WHERE user_id = ?').run(id);
+        db.prepare('DELETE FROM users WHERE id = ?').run(id);
+      });
+      deleteTransaction();
       res.json({ success: true });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Clear all orders (admin only)
+  app.delete('/api/orders/all', (req, res) => {
+    try {
+      const clearAll = db.transaction(() => {
+        db.prepare('DELETE FROM order_items').run();
+        db.prepare('DELETE FROM orders').run();
+      });
+      clearAll();
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -235,7 +293,7 @@ async function startServer() {
 
   app.post('/api/products', (req, res) => {
     const { name, sku, category, price, quantity, min_stock, unit_of_measure, image_url, reason, variations } = req.body;
-    
+
     const hasVariations = variations && variations.length > 0 ? 1 : 0;
     const totalQuantity = hasVariations ? variations.reduce((acc: number, v: any) => acc + (parseInt(v.quantity) || 0), 0) : quantity;
     const basePrice = hasVariations ? Math.min(...variations.map((v: any) => parseFloat(v.price))) : price;
@@ -244,9 +302,9 @@ async function startServer() {
       const info = db.prepare(
         'INSERT INTO products (name, sku, category, price, quantity, min_stock, unit_of_measure, image_url, has_variations) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).run(name, sku, category, basePrice, totalQuantity, min_stock || 5, unit_of_measure || 'pcs', image_url, hasVariations);
-      
+
       const productId = info.lastInsertRowid;
-      
+
       if (hasVariations) {
         const insertVariation = db.prepare(
           'INSERT INTO product_variations (product_id, name, sku, price, quantity, min_stock) VALUES (?, ?, ?, ?, ?, ?)'
@@ -275,7 +333,7 @@ async function startServer() {
   app.put('/api/products/:id', (req, res) => {
     const { id } = req.params;
     const { name, sku, category, price, quantity, min_stock, unit_of_measure, image_url, reason, variations } = req.body;
-    
+
     const hasVariations = variations && variations.length > 0 ? 1 : 0;
     const totalQuantity = hasVariations ? variations.reduce((acc: number, v: any) => acc + (parseInt(v.quantity) || 0), 0) : quantity;
     const basePrice = hasVariations ? Math.min(...variations.map((v: any) => parseFloat(v.price))) : price;
@@ -293,7 +351,7 @@ async function startServer() {
         const existingVariations = db.prepare('SELECT id, quantity FROM product_variations WHERE product_id = ?').all(id) as any[];
         const existingIds = existingVariations.map(v => v.id);
         const newIds = variations.filter((v: any) => v.id).map((v: any) => v.id);
-        
+
         // Delete removed variations
         const toDelete = existingIds.filter(eid => !newIds.includes(eid));
         if (toDelete.length > 0) {
@@ -315,9 +373,9 @@ async function startServer() {
             // Update existing
             const oldVar = existingVariations.find(ev => ev.id === v.id);
             const varChange = v.quantity - (oldVar?.quantity || 0);
-            
+
             updateVariation.run(v.name, v.sku, v.price, v.quantity, v.min_stock, v.id);
-            
+
             if (varChange !== 0) {
               insertHistory.run(id, v.id, varChange, v.quantity, reason || 'Manual update');
             }
@@ -359,11 +417,11 @@ async function startServer() {
     const transaction = db.transaction((items) => {
       for (const item of items) {
         const info = insertProduct.run(
-          item.name, 
-          item.sku, 
-          item.category || 'Others', 
-          item.price || 0, 
-          item.quantity || 0, 
+          item.name,
+          item.sku,
+          item.category || 'Others',
+          item.price || 0,
+          item.quantity || 0,
           item.min_stock || 5,
           item.unit_of_measure || 'pcs'
         );
@@ -386,7 +444,7 @@ async function startServer() {
 
     const allowedFields = ['category', 'min_stock', 'unit_of_measure'];
     const updateFields = Object.keys(updates).filter(f => allowedFields.includes(f));
-    
+
     if (updateFields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
 
     const setClause = updateFields.map(f => `${f} = ?`).join(', ');
@@ -411,7 +469,7 @@ async function startServer() {
   app.post('/api/products/:id/adjust', (req, res) => {
     const { id } = req.params;
     const { amount, reason, variation_id } = req.body;
-    
+
     try {
       const product = db.prepare('SELECT * FROM products WHERE id = ?').get(id) as any;
       if (!product) return res.status(404).json({ error: 'Product not found' });
@@ -420,7 +478,7 @@ async function startServer() {
         if (!variation_id) {
           return res.status(400).json({ error: 'Variation ID is required for products with variations' });
         }
-        
+
         const variation = db.prepare('SELECT * FROM product_variations WHERE id = ? AND product_id = ?').get(variation_id, id) as any;
         if (!variation) return res.status(404).json({ error: 'Variation not found' });
 
@@ -430,7 +488,7 @@ async function startServer() {
         const updateTx = db.transaction(() => {
           // Update variation quantity
           db.prepare('UPDATE product_variations SET quantity = ? WHERE id = ?').run(newVariationQuantity, variation_id);
-          
+
           // Update total product quantity
           const totalQty = db.prepare('SELECT SUM(quantity) as total FROM product_variations WHERE product_id = ?').get(id) as any;
           const newTotal = totalQty.total || 0;
@@ -440,7 +498,7 @@ async function startServer() {
           db.prepare(
             'INSERT INTO stock_history (product_id, variation_id, change_amount, new_quantity, reason) VALUES (?, ?, ?, ?, ?)'
           ).run(id, variation_id, amount, newVariationQuantity, reason || 'Manual adjustment');
-          
+
           return newTotal;
         });
 
@@ -451,7 +509,7 @@ async function startServer() {
         if (newQuantity < 0) return res.status(400).json({ error: 'Stock cannot be negative' });
 
         db.prepare('UPDATE products SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newQuantity, id);
-        
+
         db.prepare(
           'INSERT INTO stock_history (product_id, change_amount, new_quantity, reason) VALUES (?, ?, ?, ?)'
         ).run(id, amount, newQuantity, reason || 'Manual adjustment');
@@ -500,7 +558,7 @@ async function startServer() {
     const { id } = req.params;
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
-    
+
     const items = db.prepare(`
       SELECT oi.*, p.name as product_name, p.sku as product_sku, p.image_url as product_image,
       pv.name as variation_name, pv.sku as variation_sku
@@ -509,7 +567,7 @@ async function startServer() {
       LEFT JOIN product_variations pv ON oi.variation_id = pv.id
       WHERE oi.order_id = ?
     `).all(id);
-    
+
     res.json({ ...order, items });
   });
 
@@ -559,7 +617,7 @@ async function startServer() {
         if (item.variation_id) {
           const variation = db.prepare('SELECT quantity, price, product_id FROM product_variations WHERE id = ?').get(item.variation_id) as any;
           insertOrderItem.run(orderId, variation.product_id, item.variation_id, item.quantity, variation.price);
-          
+
           // Update variation stock
           updateVariationStock.run(item.quantity, item.variation_id);
           const newVarQuantity = variation.quantity - item.quantity;
@@ -571,7 +629,7 @@ async function startServer() {
           const product = db.prepare('SELECT quantity, price FROM products WHERE id = ?').get(item.product_id) as any;
           insertOrderItem.run(orderId, item.product_id, null, item.quantity, product.price);
           updateProductStock.run(item.quantity, item.product_id);
-          
+
           const newQuantity = product.quantity - item.quantity;
           insertStockHistory.run(item.product_id, null, -item.quantity, newQuantity, `Order #${orderId}`);
         }
@@ -591,7 +649,7 @@ async function startServer() {
     const { id } = req.params;
     const { status, reason } = req.body;
     const allowedStatuses = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
-    
+
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
