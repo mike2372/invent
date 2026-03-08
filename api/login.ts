@@ -46,7 +46,11 @@ export default async function handler(req: any, res: any) {
     });
   } catch (err: any) {
     console.error('login error', err);
-    return res.status(500).json({ success: false, message: 'Failed to process login' });
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to process login',
+      error: err?.message ?? 'Unknown error',
+    });
   }
 }
 

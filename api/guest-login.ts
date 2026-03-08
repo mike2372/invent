@@ -66,7 +66,11 @@ export default async function handler(req: any, res: any) {
     });
   } catch (err: any) {
     console.error('guest-login error', err);
-    return res.status(500).json({ success: false, message: 'Failed to process guest login' });
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to process guest login',
+      error: err?.message ?? 'Unknown error',
+    });
   }
 }
 
