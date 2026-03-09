@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { query } from './_db.js';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
