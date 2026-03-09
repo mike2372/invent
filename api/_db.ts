@@ -1,7 +1,7 @@
 import pg from 'pg';
 const { Pool } = pg;
 
-// Make sure this only appears ONCE
+// This must only appear ONCE in the file
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -18,5 +18,6 @@ export async function query<T = any>(text: string, params?: any[]): Promise<T[]>
     client.release();
   }
 }
+
 
 
