@@ -1,4 +1,5 @@
-import { query } from './_db';
+import { query } from './_db.js';
+
 
 type Role = 'admin' | 'client';
 
