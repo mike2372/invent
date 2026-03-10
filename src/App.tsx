@@ -496,7 +496,7 @@ export default function App() {
         reason: adjustData.reason
       };
       if (adjustData.variation_id) {
-        payload.variation_id = parseInt(adjustData.variation_id);
+        payload.variation_id = adjustData.variation_id;
       }
 
       const res = await fetch(`/api/products/${adjustProduct.id}/adjust`, {
@@ -1112,15 +1112,16 @@ export default function App() {
                   });
 
                   const allItems = filteredOrders.flatMap(o => o.items || []);
-                  const productStatsMap = new Map<number, { pid: number, name: string, sku: string, image?: string, totalQty: number }>();
+                  const productStatsMap = new Map<string | number, { pid: string | number, name: string, sku: string, image?: string, totalQty: number }>();
 
                   allItems.forEach(item => {
-                    const existing = productStatsMap.get(item.product_id);
+                    const pid = item.product_id;
+                    const existing = productStatsMap.get(pid);
                     if (existing) {
                       existing.totalQty += item.quantity;
                     } else {
-                      productStatsMap.set(item.product_id, {
-                        pid: item.product_id,
+                      productStatsMap.set(pid, {
+                        pid: pid,
                         name: item.product_name || 'Unknown',
                         sku: item.product_sku || '',
                         image: item.product_image,
@@ -2176,7 +2177,7 @@ export default function App() {
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400">
                       {t('current')}: {
                         adjustProduct?.has_variations && adjustData.variation_id
-                          ? adjustProduct.variations?.find(v => v.id === parseInt(adjustData.variation_id))?.quantity
+                          ? adjustProduct.variations?.find(v => v.id === adjustData.variation_id)?.quantity
                           : adjustProduct?.quantity
                       }
                     </div>
@@ -2407,7 +2408,7 @@ export default function App() {
                       type="button"
                       onClick={() => setOrderFormData({
                         ...orderFormData,
-                        items: [...orderFormData.items, { product_id: 0, quantity: 1 }]
+                        items: [...orderFormData.items, { product_id: '', quantity: 1 }]
                       })}
                       className="text-emerald-600 hover:text-emerald-700 text-sm font-semibold flex items-center gap-1"
                     >
@@ -2440,7 +2441,7 @@ export default function App() {
                               value={item.product_id}
                               onChange={e => {
                                 const newItems = [...orderFormData.items];
-                                newItems[index].product_id = parseInt(e.target.value);
+                                newItems[index].product_id = e.target.value;
                                 newItems[index].variation_id = undefined;
                                 setOrderFormData({ ...orderFormData, items: newItems });
                               }}
@@ -2463,12 +2464,12 @@ export default function App() {
                                 value={item.variation_id || ''}
                                 onChange={e => {
                                   const newItems = [...orderFormData.items];
-                                  newItems[index].variation_id = parseInt(e.target.value);
+                                  newItems[index].variation_id = e.target.value;
                                   setOrderFormData({ ...orderFormData, items: newItems });
                                 }}
                               >
                                 <option value="">{t('selectVariation')}</option>
-                                {selectedProduct.variations?.map(v => (
+                                {selectedProduct?.variations?.map(v => (
                                   <option key={v.id} value={v.id} disabled={v.quantity <= 0}>
                                     {v.name} ({v.quantity} available) - RM {v.price.toFixed(2)}
                                   </option>
