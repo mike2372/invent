@@ -615,14 +615,14 @@ export default function App() {
     }
   };
 
-  const handlePayWithFiuu = async (orderId: string | number) => {
+  const handlePayWithFiuu = async (orderId: string | number, channel: string = 'all') => {
     if (!orderId) return;
     setLoading(true);
     try {
       const res = await fetch('/api/fiuu-pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId })
+        body: JSON.stringify({ orderId, channel })
       });
       const data = await res.json();
       if (data.params) {
@@ -1282,14 +1282,22 @@ export default function App() {
                             <p className="text-xs text-neutral-500">{order.order_date ? new Date(order.order_date).toLocaleDateString() : t('n/a')}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-2">
                           {order.status === 'Pending' && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handlePayWithFiuu(order.id); }}
-                              className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-700 transition-colors shadow-sm whitespace-nowrap"
-                            >
-                              {t('payNow')}
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handlePayWithFiuu(order.id, 'tng'); }}
+                                className="px-3 py-1.5 bg-[#0055A4] text-white text-[10px] font-bold rounded-lg hover:bg-[#004488] transition-colors shadow-sm whitespace-nowrap"
+                              >
+                                TNG eWallet
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handlePayWithFiuu(order.id, 'all'); }}
+                                className="px-3 py-1.5 bg-neutral-200 text-neutral-600 text-[10px] font-bold rounded-lg hover:bg-neutral-300 transition-colors shadow-sm whitespace-nowrap"
+                              >
+                                {t('others')}
+                              </button>
+                            </div>
                           )}
                           <div className="text-right">
                             <p className="font-bold text-neutral-900">RM {order.total_amount.toFixed(2)}</p>
@@ -1415,6 +1423,7 @@ export default function App() {
                   <motion.button
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
+                    transition={{}}
                     onClick={() => setIsBulkModalOpen(true)}
                     className="bg-amber-100 text-amber-700 px-4 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-amber-200 transition-all shadow-sm border border-amber-200"
                   >
@@ -1771,12 +1780,20 @@ export default function App() {
                               <ChevronRight size={16} />
                             </button>
                             {user.role === 'client' && order.status === 'Pending' && (
-                              <button
-                                onClick={() => handlePayWithFiuu(order.id)}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors border border-emerald-500 shadow-sm"
-                              >
-                                {t('payNow')}
-                              </button>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handlePayWithFiuu(order.id, 'tng')}
+                                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0055A4] text-white hover:bg-[#004488] transition-colors border border-blue-700 shadow-sm"
+                                >
+                                  TNG
+                                </button>
+                                <button
+                                  onClick={() => handlePayWithFiuu(order.id, 'all')}
+                                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors border border-neutral-200 shadow-sm"
+                                >
+                                  {t('others')}
+                                </button>
+                              </div>
                             )}
                             {user.role === 'client' && ['Pending', 'Processing'].includes(order.status) && (
                               <button
@@ -2841,18 +2858,26 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex gap-3">
+              <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex flex-col gap-3">
                 {user.role === 'client' && selectedOrder?.status === 'Pending' && (
-                  <button
-                    onClick={() => handlePayWithFiuu(selectedOrder.id)}
-                    className="flex-1 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
-                  >
-                    {t('payNow')}
-                  </button>
+                  <div className="flex gap-2 w-full">
+                    <button
+                      onClick={() => handlePayWithFiuu(selectedOrder.id, 'tng')}
+                      className="flex-1 bg-[#0055A4] text-white font-bold py-3 rounded-xl hover:bg-[#004488] transition-colors shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
+                    >
+                      TNG eWallet
+                    </button>
+                    <button
+                      onClick={() => handlePayWithFiuu(selectedOrder.id, 'all')}
+                      className="flex-1 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
+                    >
+                      {t('others')}
+                    </button>
+                  </div>
                 )}
                 <button
                   onClick={() => setIsOrderDetailsOpen(false)}
-                  className="flex-1 bg-white border border-neutral-200 text-neutral-600 font-semibold py-3 rounded-xl hover:bg-neutral-50 transition-colors"
+                  className="w-full bg-white border border-neutral-200 text-neutral-600 font-semibold py-3 rounded-xl hover:bg-neutral-50 transition-colors"
                 >
                   {t('close')}
                 </button>

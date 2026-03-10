@@ -4,7 +4,7 @@ import crypto from 'crypto';
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const { orderId } = req.body;
+    const { orderId, channel } = req.body;
     if (!orderId) return res.status(400).json({ error: 'Order ID required' });
 
     try {
@@ -25,21 +25,29 @@ export default async function handler(req: any, res: any) {
             ? 'https://sandbox.fiuu.com/RMS/pay/'
             : 'https://pay.fiuu.com/RMS/pay/';
 
+        const params: any = {
+            amount: amount,
+            orderid: order.id,
+            bill_name: order.customer_name || 'Customer',
+            bill_email: order.customer_email || 'customer@example.com', // You might need to fetch user email
+            bill_mobile: order.customer_phone || '',
+            bill_desc: `Payment for Order #${order.id}`,
+            vcode: vcode,
+            // These URLs should point to your live site
+            returnurl: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/fiuu-notify`,
+            callbackurl: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/fiuu-notify`
+        };
+
+        if (channel === 'tng') {
+            params.payment_type = 'TNG-EWALLET';
+        } else if (channel === 'fpx') {
+            params.payment_type = 'fpx';
+        }
+
         // Return the parameters needed for the payment form
         return res.json({
             url: endpoint + merchantId + '/',
-            params: {
-                amount: amount,
-                orderid: order.id,
-                bill_name: order.customer_name || 'Customer',
-                bill_email: order.customer_email || 'customer@example.com', // You might need to fetch user email
-                bill_mobile: order.customer_phone || '',
-                bill_desc: `Payment for Order #${order.id}`,
-                vcode: vcode,
-                // These URLs should point to your live site
-                returnurl: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/fiuu-callback`,
-                callbackurl: `${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/fiuu-notify`
-            }
+            params: params
         });
     } catch (err: any) {
         console.error('Fiuu Pay Error:', err);
