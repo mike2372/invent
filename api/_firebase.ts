@@ -23,4 +23,21 @@ export const mapDoc = (doc: admin.firestore.DocumentSnapshot) => ({
     ...doc.data()
 });
 
+// Ensure a default admin user exists for fresh databases
+export const ensureAdmin = async () => {
+    const usersRef = fdb.collection('users');
+    const snapshot = await usersRef.where('username', '==', 'admin').limit(1).get();
+    if (snapshot.empty) {
+        await usersRef.add({
+            username: 'admin',
+            password: 'admin123',
+            role: 'admin',
+            full_name: 'System Admin',
+            email: 'admin@stockmaster.my',
+            created_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        console.log('Auto-seeded admin user');
+    }
+};
+
 export { admin, fdb };

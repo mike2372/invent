@@ -1,6 +1,7 @@
-import { fdb, mapDoc } from './_firebase.js';
+import { fdb, mapDoc, ensureAdmin } from './_firebase.js';
 
 export default async function handler(req: any, res: any) {
+  await ensureAdmin();
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
