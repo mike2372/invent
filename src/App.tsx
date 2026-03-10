@@ -476,6 +476,13 @@ export default function App() {
   };
 
   const handleGuestLogin = async (role: 'admin' | 'client') => {
+    if (role === 'admin') {
+      const pass = window.prompt(t('password'));
+      if (pass !== 'admin123') {
+        setError(t('incorrectPassword'));
+        return;
+      }
+    }
     setLoading(true);
     setError('');
 

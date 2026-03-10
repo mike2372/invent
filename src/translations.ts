@@ -13,6 +13,7 @@ export const translations: Record<Language, Record<string, string>> = {
         signIn: 'Sign In',
         signingIn: 'Signing in...',
         defaultCredentials: 'Default credentials: admin / admin123',
+        incorrectPassword: 'Incorrect password',
 
         // Sidebar nav
         dashboard: 'Dashboard',
@@ -227,6 +228,7 @@ export const translations: Record<Language, Record<string, string>> = {
         signIn: '登录',
         signingIn: '登录中...',
         defaultCredentials: '默认凭据: admin / admin123',
+        incorrectPassword: '密码错误',
 
         dashboard: '仪表板',
         inventory: '库存',
@@ -427,6 +429,7 @@ export const translations: Record<Language, Record<string, string>> = {
         signIn: 'Log Masuk',
         signingIn: 'Sedang log masuk...',
         defaultCredentials: 'Kelayakan lalai: admin / admin123',
+        incorrectPassword: 'Kata laluan salah',
 
         dashboard: 'Papan Pemuka',
         inventory: 'Inventori',
