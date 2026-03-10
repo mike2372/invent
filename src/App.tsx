@@ -190,7 +190,11 @@ export default function App() {
     try {
       const res = await fetch('/api/users');
       const data = await res.json();
-      setClients(data);
+      if (Array.isArray(data)) {
+        setClients(data);
+      } else {
+        console.error('Clients data is not an array:', data);
+      }
     } catch (err) {
       console.error('Failed to fetch clients');
     }
@@ -200,7 +204,11 @@ export default function App() {
     try {
       const res = await fetch('/api/products');
       const data = await res.json();
-      setProducts(data);
+      if (Array.isArray(data)) {
+        setProducts(data);
+      } else {
+        console.error('Products data is not an array:', data);
+      }
       setSelectedIds([]); // Clear selection on refresh
     } catch (err) {
       console.error('Failed to fetch products');
@@ -216,7 +224,11 @@ export default function App() {
       });
       const res = await fetch(`/api/orders?${queryParams}`);
       const data = await res.json();
-      setOrders(data);
+      if (Array.isArray(data)) {
+        setOrders(data);
+      } else {
+        console.error('Orders data is not an array:', data);
+      }
     } catch (err) {
       console.error('Failed to fetch orders');
     }

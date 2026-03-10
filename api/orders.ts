@@ -16,7 +16,7 @@ export default async function handler(req: any, res: any) {
                 return res.json(order);
             }
             const { userId, role, includeItems } = req.query;
-            let query: admin.firestore.Query = fdb.collection('orders').orderBy('order_date', 'desc');
+            let query: admin.firestore.Query = fdb.collection('orders');
             if (role === 'client' && userId) query = query.where('user_id', '==', userId);
             const snapshot = await query.get();
             const orders = await Promise.all(snapshot.docs.map(async d => {

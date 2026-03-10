@@ -20,7 +20,7 @@ export default async function handler(req: any, res: any) {
                 if (!doc.exists) return res.status(404).json({ error: 'Product not found' });
                 return res.json(mapDoc(doc));
             }
-            const snapshot = await fdb.collection('products').orderBy('updated_at', 'desc').get();
+            const snapshot = await fdb.collection('products').get();
             const products = await Promise.all(snapshot.docs.map(async doc => {
                 const product = mapDoc(doc) as any;
                 if (product.has_variations) {
