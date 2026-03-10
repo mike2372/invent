@@ -29,7 +29,9 @@ import {
   User as UserIcon,
   ClipboardList,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Product, User, StockHistory, Order, OrderItem } from './types';
@@ -138,6 +140,7 @@ export default function App() {
   const [deleteClientError, setDeleteClientError] = useState('');
   const [isConfirmClearOrders, setIsConfirmClearOrders] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [paymentSettings, setPaymentSettings] = useState({
     bank_name: '',
@@ -961,16 +964,25 @@ export default function App() {
             </div>
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">{t('password')}</label>
-              <input
-                type="password"
-                required
-                className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all placeholder:text-neutral-300"
-                placeholder="••••••••"
-                value={isRegisterMode ? registerData.password : loginData.password}
-                onChange={e => isRegisterMode
-                  ? setRegisterData({ ...registerData, password: e.target.value })
-                  : setLoginData({ ...loginData, password: e.target.value })}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  className="w-full pl-4 pr-12 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all placeholder:text-neutral-300"
+                  placeholder="••••••••"
+                  value={isRegisterMode ? registerData.password : loginData.password}
+                  onChange={e => isRegisterMode
+                    ? setRegisterData({ ...registerData, password: e.target.value })
+                    : setLoginData({ ...loginData, password: e.target.value })}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors p-1"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <button
