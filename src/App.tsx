@@ -659,14 +659,14 @@ export default function App() {
       image_url: product.image_url || '',
       reason: '',
       has_variations: product.has_variations || false,
-      variations: product.variations ? product.variations.map(v => ({
+      variations: (Array.isArray(product.variations) ? product.variations : []).map(v => ({
         id: v.id,
         name: v.name,
         sku: v.sku,
-        price: v.price.toString(),
-        quantity: v.quantity.toString(),
-        min_stock: v.min_stock.toString()
-      })) : []
+        price: v.price?.toString() || '0',
+        quantity: v.quantity?.toString() || '0',
+        min_stock: v.min_stock?.toString() || '0'
+      }))
     });
     setIsModalOpen(true);
   };
@@ -702,7 +702,7 @@ export default function App() {
     lowStock: products.filter(p => p.quantity <= p.min_stock).length,
     totalOrders: orders.length,
     pendingOrders: orders.filter(o => o.status === 'Pending').length,
-    totalRevenue: orders.reduce((acc, o) => acc + o.total_amount, 0)
+    totalRevenue: (Array.isArray(orders) ? orders : []).reduce((acc, o) => acc + (o.total_amount || 0), 0)
   };
 
   if (!user) {
@@ -1111,7 +1111,7 @@ export default function App() {
                     }
                   });
 
-                  const allItems = filteredOrders.flatMap(o => o.items || []);
+                  const allItems = (Array.isArray(filteredOrders) ? filteredOrders : []).flatMap(o => Array.isArray(o.items) ? o.items : []);
                   const productStatsMap = new Map<string | number, { pid: string | number, name: string, sku: string, image?: string, totalQty: number }>();
 
                   allItems.forEach(item => {
@@ -1431,7 +1431,14 @@ export default function App() {
                         <h3 className="font-bold text-neutral-900 truncate">{product.name}</h3>
                         <p className="text-xs text-neutral-500 font-mono mb-2">{product.sku}</p>
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-emerald-600">RM {product.price.toFixed(2)}</span>
+                          {product.has_variations && Array.isArray(product.variations) && product.variations.length > 0 ? (
+                            <div className="flex flex-col">
+                              <span className="text-[10px] text-neutral-400 uppercase">From</span>
+                              <span className="font-bold text-emerald-600">RM {Math.min(...product.variations.map(v => v.price)).toFixed(2)}</span>
+                            </div>
+                          ) : (
+                            <span className="font-bold text-emerald-600">RM {product.price.toFixed(2)}</span>
+                          )}
                           <div className="flex flex-col items-end">
                             <span className={`font-bold ${product.quantity <= product.min_stock ? 'text-red-600' : 'text-neutral-700'}`}>{product.quantity}</span>
                             <span className="text-[10px] text-neutral-400 uppercase font-medium">{product.unit_of_measure}</span>
@@ -1530,7 +1537,7 @@ export default function App() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right font-medium text-neutral-900">
-                          {product.has_variations && product.variations && product.variations.length > 0 ? (
+                          {product.has_variations && Array.isArray(product.variations) && product.variations.length > 0 ? (
                             <div className="flex flex-col items-end">
                               <span className="text-[10px] text-neutral-400 uppercase">From</span>
                               <span>{Math.min(...product.variations.map(v => v.price)).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</span>
@@ -1961,7 +1968,7 @@ export default function App() {
                     </>
                   ) : (
                     <div className="col-span-2 space-y-4">
-                      {formData.variations.map((variation, index) => (
+                      {(Array.isArray(formData.variations) ? formData.variations : []).map((variation, index) => (
                         <div key={index} className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 space-y-3 relative">
                           <button
                             type="button"
@@ -2469,7 +2476,7 @@ export default function App() {
                                 }}
                               >
                                 <option value="">{t('selectVariation')}</option>
-                                {selectedProduct?.variations?.map(v => (
+                                {(selectedProduct && Array.isArray(selectedProduct.variations) ? selectedProduct.variations : []).map(v => (
                                   <option key={v.id} value={v.id} disabled={v.quantity <= 0}>
                                     {v.name} ({v.quantity} available) - RM {v.price.toFixed(2)}
                                   </option>
@@ -2515,19 +2522,22 @@ export default function App() {
                 <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-xl border border-emerald-100">
                   <span className="font-bold text-emerald-800">{t('estimatedTotal')}</span>
                   <span className="text-xl font-bold text-emerald-600">
-                    RM {orderFormData.items.reduce((acc, item) => {
-                      const product = products.find(p => p.id === item.product_id);
-                      let price = 0;
-                      if (product) {
-                        if (product.has_variations && item.variation_id) {
-                          const variation = product.variations?.find(v => v.id === item.variation_id);
-                          price = variation ? variation.price : 0;
-                        } else {
-                          price = product.price;
+                    RM {(() => {
+                      const total = (Array.isArray(orderFormData.items) ? orderFormData.items : []).reduce((acc, item) => {
+                        const product = products.find(p => p.id === item.product_id);
+                        let price = 0;
+                        if (product) {
+                          if (product.has_variations && item.variation_id) {
+                            const variation = (Array.isArray(product.variations) ? product.variations : []).find(v => v.id === item.variation_id);
+                            price = variation ? variation.price : 0;
+                          } else {
+                            price = product.price || 0;
+                          }
                         }
-                      }
-                      return acc + (price * item.quantity);
-                    }, 0).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
+                        return acc + (price * item.quantity);
+                      }, 0);
+                      return total.toLocaleString('en-MY', { minimumFractionDigits: 2 });
+                    })()}
                   </span>
                 </div>
 
@@ -2723,7 +2733,7 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-50">
-                        {selectedOrder.items?.map((item) => (
+                        {(selectedOrder && Array.isArray(selectedOrder.items) ? selectedOrder.items : []).map((item) => (
                           <tr key={item.id}>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
@@ -2863,8 +2873,8 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {stockHistory.map((entry, i) => {
-                      const variation = historyProduct?.variations?.find(v => v.id === entry.variation_id);
+                    {(Array.isArray(stockHistory) ? stockHistory : []).map((entry, i) => {
+                      const variation = (historyProduct && Array.isArray(historyProduct.variations) ? historyProduct.variations : []).find(v => v.id === entry.variation_id);
                       return (
                         <div key={entry.id} className="relative flex gap-4">
                           {i !== stockHistory.length - 1 && (
