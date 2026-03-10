@@ -115,6 +115,7 @@ export const translations: Record<Language, Record<string, string>> = {
         noItemsAdded: 'No items added yet.',
         estimatedTotal: 'Estimated Total:',
         processing: 'Processing...',
+        payNow: 'Pay Now',
 
         // Order Details
         orderDetails: 'Order Details',
@@ -316,6 +317,7 @@ export const translations: Record<Language, Record<string, string>> = {
         noItemsAdded: '尚未添加项目。',
         estimatedTotal: '预估总计：',
         processing: '处理中...',
+        payNow: '立即支付',
 
         orderDetails: '订单详情',
         orderInfo: '订单信息',
@@ -508,6 +510,7 @@ export const translations: Record<Language, Record<string, string>> = {
         noItemsAdded: 'Belum ada item ditambah.',
         estimatedTotal: 'Anggaran Jumlah:',
         processing: 'Memproses...',
+        payNow: 'Bayar Sekarang',
 
         orderDetails: 'Butiran Pesanan',
         orderInfo: 'Maklumat Pesanan',

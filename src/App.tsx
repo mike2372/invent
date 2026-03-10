@@ -187,6 +187,21 @@ export default function App() {
     }
   }, [user]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
+    const tab = params.get('tab');
+    if (tab) setActiveTab(tab);
+
+    if (payment === 'success') {
+      alert('Payment successful!');
+      window.history.replaceState({}, document.title, "/");
+    } else if (payment === 'failed') {
+      alert('Payment failed or cancelled.');
+      window.history.replaceState({}, document.title, "/");
+    }
+  }, []);
+
   const fetchClients = async () => {
     try {
       const res = await fetch('/api/users');
@@ -597,6 +612,41 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to cancel order');
+    }
+  };
+
+  const handlePayWithFiuu = async (orderId: string | number) => {
+    if (!orderId) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/fiuu-pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId })
+      });
+      const data = await res.json();
+      if (data.params) {
+        // Create a hidden form and submit it to Fiuu
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = data.url;
+        Object.keys(data.params).forEach(key => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = data.params[key];
+          form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+      } else {
+        alert(data.error || 'Payment initialization failed');
+      }
+    } catch (err) {
+      console.error('Fiuu Pay Request Error:', err);
+      alert('Payment failed to initialize');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1232,10 +1282,20 @@ export default function App() {
                             <p className="text-xs text-neutral-500">{order.order_date ? new Date(order.order_date).toLocaleDateString() : t('n/a')}</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-neutral-900">RM {order.total_amount.toFixed(2)}</p>
-                          <span className={`text-[10px] font-bold uppercase ${order.status === 'Delivered' ? 'text-emerald-600' : 'text-amber-600'
-                            }`}>{order.status}</span>
+                        <div className="flex items-center gap-3">
+                          {order.status === 'Pending' && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handlePayWithFiuu(order.id); }}
+                              className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-700 transition-colors shadow-sm whitespace-nowrap"
+                            >
+                              {t('payNow')}
+                            </button>
+                          )}
+                          <div className="text-right">
+                            <p className="font-bold text-neutral-900">RM {order.total_amount.toFixed(2)}</p>
+                            <span className={`text-[10px] font-bold uppercase ${order.status === 'Delivered' ? 'text-emerald-600' : 'text-amber-600'
+                              }`}>{order.status}</span>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1710,6 +1770,14 @@ export default function App() {
                               {t('details')}
                               <ChevronRight size={16} />
                             </button>
+                            {user.role === 'client' && order.status === 'Pending' && (
+                              <button
+                                onClick={() => handlePayWithFiuu(order.id)}
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors border border-emerald-500 shadow-sm"
+                              >
+                                {t('payNow')}
+                              </button>
+                            )}
                             {user.role === 'client' && ['Pending', 'Processing'].includes(order.status) && (
                               <button
                                 onClick={() => handleUpdateOrderStatus(order.id, 'Cancelled')}
@@ -2773,10 +2841,18 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="p-6 bg-neutral-50 border-t border-neutral-100">
+              <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex gap-3">
+                {user.role === 'client' && selectedOrder?.status === 'Pending' && (
+                  <button
+                    onClick={() => handlePayWithFiuu(selectedOrder.id)}
+                    className="flex-1 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
+                  >
+                    {t('payNow')}
+                  </button>
+                )}
                 <button
                   onClick={() => setIsOrderDetailsOpen(false)}
-                  className="w-full bg-white border border-neutral-200 text-neutral-600 font-semibold py-3 rounded-xl hover:bg-neutral-50 transition-colors"
+                  className="flex-1 bg-white border border-neutral-200 text-neutral-600 font-semibold py-3 rounded-xl hover:bg-neutral-50 transition-colors"
                 >
                   {t('close')}
                 </button>
