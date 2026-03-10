@@ -16,7 +16,8 @@ export default async function handler(req: any, res: any) {
                     role: data.role,
                     full_name: data.full_name,
                     email: data.email,
-                    phone: data.phone
+                    phone: data.phone,
+                    is_guest: data.is_guest || false
                 };
             });
             return res.json(users);
@@ -27,6 +28,7 @@ export default async function handler(req: any, res: any) {
             const docRef = await fdb.collection('users').add({
                 username, password, full_name, email, phone,
                 role: role || 'client',
+                is_guest: false,
                 created_at: admin.firestore.FieldValue.serverTimestamp()
             });
             return res.json({ success: true, id: docRef.id });
@@ -45,7 +47,8 @@ export default async function handler(req: any, res: any) {
                     role: user.role,
                     full_name: user.full_name,
                     email: user.email,
-                    phone: user.phone
+                    phone: user.phone,
+                    is_guest: user.is_guest || false
                 }
             });
         }

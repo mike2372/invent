@@ -18,6 +18,7 @@ export default async function handler(req: any, res: any) {
         password: 'guest_pass',
         role,
         full_name: `Guest ${role === 'admin' ? 'Admin' : 'Client'}`,
+        is_guest: true,
         created_at: admin.firestore.FieldValue.serverTimestamp()
       };
       const docRef = await fdb.collection('users').add(newUser);
@@ -34,7 +35,8 @@ export default async function handler(req: any, res: any) {
         role: (user as any).role,
         full_name: (user as any).full_name,
         email: (user as any).email,
-        phone: (user as any).phone
+        phone: (user as any).phone,
+        is_guest: true
       }
     });
   } catch (err: any) {

@@ -14,6 +14,8 @@ export const translations: Record<Language, Record<string, string>> = {
         signingIn: 'Signing in...',
         defaultCredentials: 'Default credentials: admin / admin123',
         incorrectPassword: 'Incorrect password',
+        registeredOnly: 'Registered Users Only',
+        signInToTrack: 'Please register or sign in with your account to track your orders and view history.',
 
         // Sidebar nav
         dashboard: 'Dashboard',
@@ -229,6 +231,8 @@ export const translations: Record<Language, Record<string, string>> = {
         signingIn: '登录中...',
         defaultCredentials: '默认凭据: admin / admin123',
         incorrectPassword: '密码错误',
+        registeredOnly: '仅限注册用户',
+        signInToTrack: '请注册或使用您的账户登录以跟踪订单并查看历史记录。',
 
         dashboard: '仪表板',
         inventory: '库存',
@@ -430,6 +434,8 @@ export const translations: Record<Language, Record<string, string>> = {
         signingIn: 'Sedang log masuk...',
         defaultCredentials: 'Kelayakan lalai: admin / admin123',
         incorrectPassword: 'Kata laluan salah',
+        registeredOnly: 'Hanya Pengguna Berdaftar',
+        signInToTrack: 'Sila daftar atau log masuk dengan akaun anda untuk menjejaki pesanan dan melihat sejarah.',
 
         dashboard: 'Papan Pemuka',
         inventory: 'Inventori',

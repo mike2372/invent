@@ -25,7 +25,8 @@ export default async function handler(req: any, res: any) {
           role: user.role,
           full_name: user.full_name,
           email: user.email,
-          phone: user.phone
+          phone: user.phone,
+          is_guest: false
         }
       });
     } else {

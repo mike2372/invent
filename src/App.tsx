@@ -805,6 +805,23 @@ export default function App() {
     totalRevenue: (Array.isArray(orders) ? orders : []).reduce((acc, o) => acc + (o.total_amount || 0), 0)
   };
 
+  const GuestRestrictionMessage = () => (
+    <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center shadow-sm">
+      <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600">
+        <ShieldCheck size={32} />
+      </div>
+      <h3 className="text-xl font-bold text-neutral-900 mb-2">{t('registeredOnly')}</h3>
+      <p className="text-neutral-500 max-w-sm mx-auto mb-8 tracking-tight">{t('signInToTrack')}</p>
+      <button
+        onClick={handleLogout}
+        className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-emerald-100 flex items-center gap-2 mx-auto"
+      >
+        <LogOut size={18} />
+        {t('signIn')}
+      </button>
+    </div>
+  );
+
   if (!user) {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
@@ -1134,255 +1151,261 @@ export default function App() {
               <p className="text-neutral-500">{t('welcomeBack')}, {user.full_name || user.username}</p>
             </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Profile Card */}
-              <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
-                      <UserIcon size={32} />
+            {user.is_guest ? (
+              <GuestRestrictionMessage />
+            ) : (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Profile Card */}
+                  <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
+                          <UserIcon size={32} />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-bold text-neutral-900">{user.full_name || 'N/A'}</h2>
+                          <p className="text-sm text-neutral-500">{t('clientAccount')}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={openProfileEdit}
+                        className="p-2 text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      >
+                        <Edit2 size={20} />
+                      </button>
                     </div>
-                    <div>
-                      <h2 className="text-lg font-bold text-neutral-900">{user.full_name || 'N/A'}</h2>
-                      <p className="text-sm text-neutral-500">{t('clientAccount')}</p>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('email')}</label>
+                        <p className="text-neutral-900">{user.email || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('phone')}</label>
+                        <p className="text-neutral-900">{user.phone || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('username')}</label>
+                        <p className="text-neutral-900">{user.username}</p>
+                      </div>
                     </div>
                   </div>
-                  <button
-                    onClick={openProfileEdit}
-                    className="p-2 text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                  >
-                    <Edit2 size={20} />
-                  </button>
+
+                  {/* Order Stats */}
+                  <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
+                      <div className="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center text-blue-600 mb-4">
+                        <ShoppingCart size={24} />
+                      </div>
+                      <p className="text-neutral-500 text-sm font-medium">{t('totalOrders')}</p>
+                      <h3 className="text-2xl font-bold text-neutral-900 mt-1">{orders.length}</h3>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
+                      <div className="bg-emerald-50 w-12 h-12 rounded-xl flex items-center justify-center text-emerald-600 mb-4">
+                        <DollarSign size={24} />
+                      </div>
+                      <p className="text-neutral-500 text-sm font-medium">{t('totalSpent')}</p>
+                      <h3 className="text-2xl font-bold text-neutral-900 mt-1">
+                        RM {orders.reduce((acc, o) => acc + o.total_amount, 0).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
+                      </h3>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('email')}</label>
-                    <p className="text-neutral-900">{user.email || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('phone')}</label>
-                    <p className="text-neutral-900">{user.phone || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('username')}</label>
-                    <p className="text-neutral-900">{user.username}</p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Order Stats */}
-              <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
-                  <div className="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center text-blue-600 mb-4">
-                    <ShoppingCart size={24} />
+                {/* Top Purchased Products Chart */}
+                <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-neutral-100 flex items-center justify-between flex-wrap gap-4">
+                    <h2 className="text-lg font-bold text-neutral-900">{t('topPurchasedProducts')}</h2>
+                    <select
+                      value={selectedPeriod}
+                      onChange={(e) => setSelectedPeriod(e.target.value as any)}
+                      className="px-3 py-2 rounded-lg border border-neutral-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white cursor-pointer hover:bg-neutral-50 transition-colors"
+                    >
+                      <option value="30_days">{t('period30Days')}</option>
+                      <option value="3_months">{t('period3Months')}</option>
+                      <option value="6_months">{t('period6Months')}</option>
+                      <option value="1_year">{t('period1Year')}</option>
+                      <option value="all_time">{t('periodAllTime')}</option>
+                    </select>
                   </div>
-                  <p className="text-neutral-500 text-sm font-medium">{t('totalOrders')}</p>
-                  <h3 className="text-2xl font-bold text-neutral-900 mt-1">{orders.length}</h3>
-                </div>
-                <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
-                  <div className="bg-emerald-50 w-12 h-12 rounded-xl flex items-center justify-center text-emerald-600 mb-4">
-                    <DollarSign size={24} />
-                  </div>
-                  <p className="text-neutral-500 text-sm font-medium">{t('totalSpent')}</p>
-                  <h3 className="text-2xl font-bold text-neutral-900 mt-1">
-                    RM {orders.reduce((acc, o) => acc + o.total_amount, 0).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-                  </h3>
-                </div>
-              </div>
-            </div>
+                  <div className="p-6">
+                    {(() => {
+                      const now = new Date();
+                      const filteredOrders = orders.filter(order => {
+                        if (selectedPeriod === 'all_time') return true;
+                        const orderDateStr = order.order_date;
+                        if (!orderDateStr) return false;
+                        const orderDate = new Date(orderDateStr);
+                        if (isNaN(orderDate.getTime())) return false;
+                        const diffTime = Math.abs(now.getTime() - orderDate.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            {/* Top Purchased Products Chart */}
-            <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-neutral-100 flex items-center justify-between flex-wrap gap-4">
-                <h2 className="text-lg font-bold text-neutral-900">{t('topPurchasedProducts')}</h2>
-                <select
-                  value={selectedPeriod}
-                  onChange={(e) => setSelectedPeriod(e.target.value as any)}
-                  className="px-3 py-2 rounded-lg border border-neutral-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white cursor-pointer hover:bg-neutral-50 transition-colors"
-                >
-                  <option value="30_days">{t('period30Days')}</option>
-                  <option value="3_months">{t('period3Months')}</option>
-                  <option value="6_months">{t('period6Months')}</option>
-                  <option value="1_year">{t('period1Year')}</option>
-                  <option value="all_time">{t('periodAllTime')}</option>
-                </select>
-              </div>
-              <div className="p-6">
-                {(() => {
-                  const now = new Date();
-                  const filteredOrders = orders.filter(order => {
-                    if (selectedPeriod === 'all_time') return true;
-                    const orderDateStr = order.order_date;
-                    if (!orderDateStr) return false;
-                    const orderDate = new Date(orderDateStr);
-                    if (isNaN(orderDate.getTime())) return false;
-                    const diffTime = Math.abs(now.getTime() - orderDate.getTime());
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                    switch (selectedPeriod) {
-                      case '30_days': return diffDays <= 30;
-                      case '3_months': return diffDays <= 90;
-                      case '6_months': return diffDays <= 180;
-                      case '1_year': return diffDays <= 365;
-                      default: return true;
-                    }
-                  });
-
-                  const allItems = (Array.isArray(filteredOrders) ? filteredOrders : []).flatMap(o => Array.isArray(o.items) ? o.items : []);
-                  const productStatsMap = new Map<string | number, { pid: string | number, name: string, sku: string, image?: string, totalQty: number }>();
-
-                  allItems.forEach(item => {
-                    const pid = item.product_id;
-                    const existing = productStatsMap.get(pid);
-                    if (existing) {
-                      existing.totalQty += item.quantity;
-                    } else {
-                      productStatsMap.set(pid, {
-                        pid: pid,
-                        name: item.product_name || 'Unknown',
-                        sku: item.product_sku || '',
-                        image: item.product_image,
-                        totalQty: item.quantity
+                        switch (selectedPeriod) {
+                          case '30_days': return diffDays <= 30;
+                          case '3_months': return diffDays <= 90;
+                          case '6_months': return diffDays <= 180;
+                          case '1_year': return diffDays <= 365;
+                          default: return true;
+                        }
                       });
-                    }
-                  });
 
-                  const productStats = Array.from(productStatsMap.values())
-                    .sort((a, b) => b.totalQty - a.totalQty)
-                    .slice(0, 10);
+                      const allItems = (Array.isArray(filteredOrders) ? filteredOrders : []).flatMap(o => Array.isArray(o.items) ? o.items : []);
+                      const productStatsMap = new Map<string | number, { pid: string | number, name: string, sku: string, image?: string, totalQty: number }>();
 
-                  if (productStats.length === 0) {
-                    return (
-                      <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
-                        <Package size={48} className="mb-4 opacity-20" />
-                        <p>{t('noProductsFound')}</p>
-                      </div>
-                    );
-                  }
+                      allItems.forEach(item => {
+                        const pid = item.product_id;
+                        const existing = productStatsMap.get(pid);
+                        if (existing) {
+                          existing.totalQty += item.quantity;
+                        } else {
+                          productStatsMap.set(pid, {
+                            pid: pid,
+                            name: item.product_name || 'Unknown',
+                            sku: item.product_sku || '',
+                            image: item.product_image,
+                            totalQty: item.quantity
+                          });
+                        }
+                      });
 
-                  return (
-                    <div className="space-y-8">
-                      <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={productStats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E5E5" />
-                            <XAxis
-                              dataKey="name"
-                              tick={{ fontSize: 12, fill: '#737373' }}
-                              axisLine={false}
-                              tickLine={false}
-                              interval={0}
-                              angle={-45}
-                              textAnchor="end"
-                              height={80}
-                            />
-                            <YAxis
-                              tick={{ fontSize: 12, fill: '#737373' }}
-                              axisLine={false}
-                              tickLine={false}
-                            />
-                            <Tooltip
-                              cursor={{ fill: '#F5F5F5' }}
-                              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                            />
-                            <Bar dataKey="totalQty" name={t('quantityPurchased')} radius={[4, 4, 0, 0]}>
-                              {productStats.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={index < 3 ? '#059669' : '#34D399'} />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
+                      const productStats = Array.from(productStatsMap.values())
+                        .sort((a, b) => b.totalQty - a.totalQty)
+                        .slice(0, 10);
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {productStats.map((stat, index) => (
-                          <div key={stat.pid} className="flex items-center gap-3 p-3 bg-neutral-50 rounded-xl border border-neutral-100 transition-colors hover:bg-emerald-50/50">
-                            {stat.image ? (
-                              <img
-                                src={stat.image}
-                                alt={stat.name}
-                                className="w-12 h-12 object-cover rounded-lg border border-neutral-200 bg-white"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center border border-neutral-200 text-emerald-600">
-                                <Package size={24} />
+                      if (productStats.length === 0) {
+                        return (
+                          <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
+                            <Package size={48} className="mb-4 opacity-20" />
+                            <p>{t('noProductsFound')}</p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-8">
+                          <div className="h-[300px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={productStats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E5E5" />
+                                <XAxis
+                                  dataKey="name"
+                                  tick={{ fontSize: 12, fill: '#737373' }}
+                                  axisLine={false}
+                                  tickLine={false}
+                                  interval={0}
+                                  angle={-45}
+                                  textAnchor="end"
+                                  height={80}
+                                />
+                                <YAxis
+                                  tick={{ fontSize: 12, fill: '#737373' }}
+                                  axisLine={false}
+                                  tickLine={false}
+                                />
+                                <Tooltip
+                                  cursor={{ fill: '#F5F5F5' }}
+                                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                />
+                                <Bar dataKey="totalQty" name={t('quantityPurchased')} radius={[4, 4, 0, 0]}>
+                                  {productStats.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={index < 3 ? '#059669' : '#34D399'} />
+                                  ))}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {productStats.map((stat, index) => (
+                              <div key={stat.pid} className="flex items-center gap-3 p-3 bg-neutral-50 rounded-xl border border-neutral-100 transition-colors hover:bg-emerald-50/50">
+                                {stat.image ? (
+                                  <img
+                                    src={stat.image}
+                                    alt={stat.name}
+                                    className="w-12 h-12 object-cover rounded-lg border border-neutral-200 bg-white"
+                                  />
+                                ) : (
+                                  <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center border border-neutral-200 text-emerald-600">
+                                    <Package size={24} />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-neutral-900 truncate">{stat.name}</p>
+                                  <div className="flex items-center gap-2 text-xs text-neutral-500">
+                                    <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-neutral-200">{stat.sku}</span>
+                                    <span>{stat.totalQty} units</span>
+                                  </div>
+                                </div>
+                                <div className="text-emerald-600 font-bold text-lg opacity-50">
+                                  #{index + 1}
+                                </div>
                               </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="font-bold text-neutral-900 truncate">{stat.name}</p>
-                              <div className="flex items-center gap-2 text-xs text-neutral-500">
-                                <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-neutral-200">{stat.sku}</span>
-                                <span>{stat.totalQty} units</span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Recent Orders Summary */}
+                <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-neutral-100">
+                    <h2 className="text-lg font-bold text-neutral-900">{t('recentActivity')}</h2>
+                  </div>
+                  <div className="p-6">
+                    {orders.length > 0 ? (
+                      <div className="space-y-4">
+                        {orders.slice(0, 5).map(order => (
+                          <div key={order.id} className="flex items-center justify-between p-4 bg-neutral-50 rounded-xl border border-neutral-100">
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center border border-neutral-200 text-neutral-400">
+                                <ClipboardList size={20} />
+                              </div>
+                              <div>
+                                <p className="font-bold text-neutral-900">{t('orderId')} #{order.id?.toString().slice(-5).toUpperCase() || '00000'}</p>
+                                <p className="text-xs text-neutral-500">{formatDate(order.order_date)}</p>
                               </div>
                             </div>
-                            <div className="text-emerald-600 font-bold text-lg opacity-50">
-                              #{index + 1}
+                            <div className="flex flex-col gap-2">
+                              {order.status === 'Pending' && (
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setActiveTab('manual_payment'); }}
+                                    className="px-3 py-1.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-lg hover:bg-emerald-200 transition-colors shadow-sm whitespace-nowrap"
+                                  >
+                                    {t('bankTransfer')}
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handlePayWithFiuu(order.id, 'tng'); }}
+                                    className="px-3 py-1.5 bg-[#0055A4] text-white text-[10px] font-bold rounded-lg hover:bg-[#004488] transition-colors shadow-sm whitespace-nowrap"
+                                  >
+                                    TNG eWallet
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handlePayWithFiuu(order.id, 'all'); }}
+                                    className="px-3 py-1.5 bg-neutral-200 text-neutral-600 text-[10px] font-bold rounded-lg hover:bg-neutral-300 transition-colors shadow-sm whitespace-nowrap"
+                                  >
+                                    {t('others')}
+                                  </button>
+                                </div>
+                              )}
+                              <div className="text-right">
+                                <p className="font-bold text-neutral-900">RM {order.total_amount.toFixed(2)}</p>
+                                <span className={`text-[10px] font-bold uppercase ${order.status === 'Delivered' ? 'text-emerald-600' : 'text-amber-600'
+                                  }`}>{order.status}</span>
+                              </div>
                             </div>
                           </div>
                         ))}
                       </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Recent Orders Summary */}
-            <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-neutral-100">
-                <h2 className="text-lg font-bold text-neutral-900">{t('recentActivity')}</h2>
-              </div>
-              <div className="p-6">
-                {orders.length > 0 ? (
-                  <div className="space-y-4">
-                    {orders.slice(0, 5).map(order => (
-                      <div key={order.id} className="flex items-center justify-between p-4 bg-neutral-50 rounded-xl border border-neutral-100">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center border border-neutral-200 text-neutral-400">
-                            <ClipboardList size={20} />
-                          </div>
-                          <div>
-                            <p className="font-bold text-neutral-900">{t('orderId')} #{order.id?.toString().slice(-5).toUpperCase() || '00000'}</p>
-                            <p className="text-xs text-neutral-500">{formatDate(order.order_date)}</p>
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          {order.status === 'Pending' && (
-                            <div className="flex gap-2">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setActiveTab('manual_payment'); }}
-                                className="px-3 py-1.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-lg hover:bg-emerald-200 transition-colors shadow-sm whitespace-nowrap"
-                              >
-                                {t('bankTransfer')}
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handlePayWithFiuu(order.id, 'tng'); }}
-                                className="px-3 py-1.5 bg-[#0055A4] text-white text-[10px] font-bold rounded-lg hover:bg-[#004488] transition-colors shadow-sm whitespace-nowrap"
-                              >
-                                TNG eWallet
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handlePayWithFiuu(order.id, 'all'); }}
-                                className="px-3 py-1.5 bg-neutral-200 text-neutral-600 text-[10px] font-bold rounded-lg hover:bg-neutral-300 transition-colors shadow-sm whitespace-nowrap"
-                              >
-                                {t('others')}
-                              </button>
-                            </div>
-                          )}
-                          <div className="text-right">
-                            <p className="font-bold text-neutral-900">RM {order.total_amount.toFixed(2)}</p>
-                            <span className={`text-[10px] font-bold uppercase ${order.status === 'Delivered' ? 'text-emerald-600' : 'text-amber-600'
-                              }`}>{order.status}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                    ) : (
+                      <p className="text-center text-neutral-500 py-8">{t('noOrdersYet')}</p>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-center text-neutral-500 py-8">{t('noOrdersYet')}</p>
-                )}
-              </div>
-            </div>
+                </div>
+              </>
+            )}
           </div>
         )
         }
@@ -1790,116 +1813,120 @@ export default function App() {
                 </div>
               </header>
 
-              <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <h2 className="text-lg font-bold text-neutral-900">{t('orders')}</h2>
-                  <div className="relative w-full md:w-80">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
-                    <input
-                      type="text"
-                      placeholder={t('searchOrders')}
-                      className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                      value={orderSearch}
-                      onChange={e => setOrderSearch(e.target.value)}
-                    />
+              {user.role === 'client' && user.is_guest ? (
+                <GuestRestrictionMessage />
+              ) : (
+                <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <h2 className="text-lg font-bold text-neutral-900">{t('orders')}</h2>
+                    <div className="relative w-full md:w-80">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+                      <input
+                        type="text"
+                        placeholder={t('searchOrders')}
+                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                        value={orderSearch}
+                        onChange={e => setOrderSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider">
+                          <th className="px-6 py-4 font-semibold">{t('orderId')}</th>
+                          <th className="px-6 py-4 font-semibold">{t('customer')}</th>
+                          <th className="px-6 py-4 font-semibold">{t('orderDate')}</th>
+                          <th className="px-6 py-4 font-semibold">{t('deliveryDate')}</th>
+                          <th className="px-6 py-4 font-semibold text-right">{t('total')} (RM)</th>
+                          <th className="px-6 py-4 font-semibold">{t('status')}</th>
+                          <th className="px-6 py-4 font-semibold text-right">{t('actions')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100">
+                        {filteredOrders.map((order) => (
+                          <tr key={order.id} className="hover:bg-neutral-50 transition-colors group">
+                            <td className="px-6 py-4 font-mono text-sm text-neutral-500">
+                              #{order.id.toString().padStart(5, '0')}
+                            </td>
+                            <td className="px-6 py-4 font-semibold text-neutral-900">
+                              {order.customer_name}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-neutral-500">
+                              {formatDate(order.order_date)}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-neutral-500">
+                              {formatDate(order.delivery_date)}
+                            </td>
+                            <td className="px-6 py-4 text-right font-medium text-neutral-900">
+                              {order.total_amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${order.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
+                                order.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
+                                  order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                    order.status === 'Processing' ? 'bg-amber-100 text-amber-700' :
+                                      'bg-neutral-100 text-neutral-600'
+                                }`}>
+                                {order.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => fetchOrderDetails(order.id)}
+                                  className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm flex items-center gap-1"
+                                >
+                                  {t('details')}
+                                  <ChevronRight size={16} />
+                                </button>
+                                {user.role === 'client' && order.status === 'Pending' && (
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => setActiveTab('manual_payment')}
+                                      className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors border border-emerald-200 shadow-sm"
+                                    >
+                                      Bank
+                                    </button>
+                                    <button
+                                      onClick={() => handlePayWithFiuu(order.id, 'tng')}
+                                      className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0055A4] text-white hover:bg-[#004488] transition-colors border border-blue-700 shadow-sm"
+                                    >
+                                      TNG
+                                    </button>
+                                    <button
+                                      onClick={() => handlePayWithFiuu(order.id, 'all')}
+                                      className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors border border-neutral-200 shadow-sm"
+                                    >
+                                      {t('others')}
+                                    </button>
+                                  </div>
+                                )}
+                                {user.role === 'client' && ['Pending', 'Processing'].includes(order.status) && (
+                                  <button
+                                    onClick={() => handleUpdateOrderStatus(order.id, 'Cancelled')}
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors border border-red-100"
+                                  >
+                                    {t('cancelOrder')}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredOrders.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="px-6 py-12 text-center text-neutral-500">
+                              {t('noOrdersFound')}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider">
-                        <th className="px-6 py-4 font-semibold">{t('orderId')}</th>
-                        <th className="px-6 py-4 font-semibold">{t('customer')}</th>
-                        <th className="px-6 py-4 font-semibold">{t('orderDate')}</th>
-                        <th className="px-6 py-4 font-semibold">{t('deliveryDate')}</th>
-                        <th className="px-6 py-4 font-semibold text-right">{t('total')} (RM)</th>
-                        <th className="px-6 py-4 font-semibold">{t('status')}</th>
-                        <th className="px-6 py-4 font-semibold text-right">{t('actions')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-100">
-                      {filteredOrders.map((order) => (
-                        <tr key={order.id} className="hover:bg-neutral-50 transition-colors group">
-                          <td className="px-6 py-4 font-mono text-sm text-neutral-500">
-                            #{order.id.toString().padStart(5, '0')}
-                          </td>
-                          <td className="px-6 py-4 font-semibold text-neutral-900">
-                            {order.customer_name}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-neutral-500">
-                            {formatDate(order.order_date)}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-neutral-500">
-                            {formatDate(order.delivery_date)}
-                          </td>
-                          <td className="px-6 py-4 text-right font-medium text-neutral-900">
-                            {order.total_amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${order.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
-                              order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
-                                order.status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
-                                  order.status === 'Processing' ? 'bg-amber-100 text-amber-700' :
-                                    'bg-neutral-100 text-neutral-600'
-                              }`}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => fetchOrderDetails(order.id)}
-                                className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm flex items-center gap-1"
-                              >
-                                {t('details')}
-                                <ChevronRight size={16} />
-                              </button>
-                              {user.role === 'client' && order.status === 'Pending' && (
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => setActiveTab('manual_payment')}
-                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors border border-emerald-200 shadow-sm"
-                                  >
-                                    Bank
-                                  </button>
-                                  <button
-                                    onClick={() => handlePayWithFiuu(order.id, 'tng')}
-                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0055A4] text-white hover:bg-[#004488] transition-colors border border-blue-700 shadow-sm"
-                                  >
-                                    TNG
-                                  </button>
-                                  <button
-                                    onClick={() => handlePayWithFiuu(order.id, 'all')}
-                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors border border-neutral-200 shadow-sm"
-                                  >
-                                    {t('others')}
-                                  </button>
-                                </div>
-                              )}
-                              {user.role === 'client' && ['Pending', 'Processing'].includes(order.status) && (
-                                <button
-                                  onClick={() => handleUpdateOrderStatus(order.id, 'Cancelled')}
-                                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors border border-red-100"
-                                >
-                                  {t('cancelOrder')}
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {filteredOrders.length === 0 && (
-                        <tr>
-                          <td colSpan={7} className="px-6 py-12 text-center text-neutral-500">
-                            {t('noOrdersFound')}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              )}
             </>
           )
         }

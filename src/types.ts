@@ -30,6 +30,7 @@ export interface User {
   full_name?: string;
   email?: string;
   phone?: string;
+  is_guest?: boolean;
 }
 
 export interface StockHistory {
