@@ -92,9 +92,10 @@ export default async function handler(req: any, res: any) {
         }
 
         if (req.method === 'PUT' && id) {
-            const { status, reason } = req.body;
+            const { status, reason, payment_notified } = req.body;
             const updateData: any = { status };
             if (status === 'Cancelled') updateData.cancellation_reason = reason;
+            if (payment_notified !== undefined) updateData.payment_notified = payment_notified;
             await fdb.collection('orders').doc(id).update(updateData);
             return res.json({ success: true });
         }

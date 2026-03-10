@@ -143,6 +143,10 @@ export const translations: Record<Language, Record<string, string>> = {
         back: 'Back',
         cancelOrderPrompt: 'Please provide a reason for cancelling this order.',
         enterCancelReason: 'Enter cancellation reason...',
+        notifyViaWhatsapp: 'Notify via WhatsApp',
+        paymentNotification: 'Payment Notification',
+        whatsappNotifyMsg: 'Hi Admin, I have made payment for Order',
+        pendingPaymentAlert: 'New Payment Notifications',
 
         // Stock
         adjustStock: 'Adjust Stock',
@@ -354,6 +358,10 @@ export const translations: Record<Language, Record<string, string>> = {
         back: '返回',
         cancelOrderPrompt: '请提供取消该订单的原因。',
         enterCancelReason: '输入取消原因...',
+        notifyViaWhatsapp: '通过 WhatsApp 通知',
+        paymentNotification: '付款通知',
+        whatsappNotifyMsg: '管理员您好，我已为订单付款',
+        pendingPaymentAlert: '新的付款通知',
 
         adjustStock: '调整库存',
         adjustmentAmount: '调整数量',
@@ -557,6 +565,10 @@ export const translations: Record<Language, Record<string, string>> = {
         back: 'Kembali',
         cancelOrderPrompt: 'Sila berikan sebab pembatalan pesanan ini.',
         enterCancelReason: 'Masukkan sebab pembatalan...',
+        notifyViaWhatsapp: 'Beritahu melalui WhatsApp',
+        paymentNotification: 'Notifikasi Pembayaran',
+        whatsappNotifyMsg: 'Hai Admin, saya telah membuat pembayaran untuk Pesanan',
+        pendingPaymentAlert: 'Notifikasi Pembayaran Baharu',
 
         adjustStock: 'Laras Stok',
         adjustmentAmount: 'Jumlah Pelarasan',

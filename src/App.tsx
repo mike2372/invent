@@ -692,6 +692,25 @@ export default function App() {
     }
   };
 
+  const handleNotifyPayment = async (orderId: string | number) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_notified: true })
+      });
+      if (res.ok) {
+        fetchOrders();
+        const shortOrderId = orderId.toString().slice(-5).toUpperCase();
+        const message = `${t('whatsappNotifyMsg')} #${shortOrderId}`;
+        const whatsappUrl = `https://wa.me/60183883070?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Failed to notify payment');
+    }
+  };
+
   const handlePayWithFiuu = async (orderId: string | number, channel: string = 'all') => {
     if (!orderId) return;
     setLoading(true);
@@ -1468,6 +1487,15 @@ export default function App() {
                                   </button>
                                 </div>
                               )}
+                              {order.status === 'Pending' && !order.payment_notified && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleNotifyPayment(order.id); }}
+                                  className="px-3 py-1.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-lg hover:bg-amber-200 transition-colors shadow-sm whitespace-nowrap flex items-center gap-1"
+                                >
+                                  <ShieldCheck size={12} />
+                                  {t('notifyViaWhatsapp')}
+                                </button>
+                              )}
                               <div className="text-right">
                                 <p className="font-bold text-neutral-900">RM {order.total_amount.toFixed(2)}</p>
                                 <span className={`text-[10px] font-bold uppercase ${order.status === 'Delivered' ? 'text-emerald-600' : 'text-amber-600'
@@ -1526,6 +1554,47 @@ export default function App() {
                   </motion.div>
                 ))}
               </div>
+
+              {/* Payment Notifications Alert */}
+              {orders.filter(o => o.status === 'Pending' && o.payment_notified).length > 0 && (
+                <div className="mb-8 bg-amber-50 border border-amber-200 rounded-2xl p-6 shadow-sm overflow-hidden">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="bg-amber-100 p-2 rounded-lg text-amber-600">
+                      <AlertTriangle size={20} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-amber-900">{t('pendingPaymentAlert')}</h2>
+                      <p className="text-sm text-amber-600">{t('paymentNotification')} ({orders.filter(o => o.status === 'Pending' && o.payment_notified).length})</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {orders.filter(o => o.status === 'Pending' && o.payment_notified).map(order => (
+                      <motion.div
+                        key={order.id}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-white p-4 rounded-xl border border-amber-100 shadow-sm flex flex-col justify-between group hover:border-amber-400 transition-all cursor-pointer"
+                        onClick={() => fetchOrderDetails(order.id)}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">#{order.id.toString().slice(-5).toUpperCase()}</p>
+                            <p className="font-bold text-neutral-900 truncate">{order.customer_name}</p>
+                          </div>
+                          <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-wider">NEW</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-4">
+                          <p className="font-bold text-emerald-600">RM {order.total_amount.toFixed(2)}</p>
+                          <div className="flex items-center gap-1 text-amber-600 text-xs font-bold">
+                            {t('details')}
+                            <ChevronRight size={14} />
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Low Stock Alerts */}
               {stats.lowStock > 0 && (
