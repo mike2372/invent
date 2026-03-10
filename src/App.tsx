@@ -1098,7 +1098,10 @@ export default function App() {
                   const now = new Date();
                   const filteredOrders = orders.filter(order => {
                     if (selectedPeriod === 'all_time') return true;
-                    const orderDate = new Date(order.order_date);
+                    const orderDateStr = order.order_date;
+                    if (!orderDateStr) return false;
+                    const orderDate = new Date(orderDateStr);
+                    if (isNaN(orderDate.getTime())) return false;
                     const diffTime = Math.abs(now.getTime() - orderDate.getTime());
                     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -1225,8 +1228,8 @@ export default function App() {
                             <ClipboardList size={20} />
                           </div>
                           <div>
-                            <p className="font-bold text-neutral-900">{t('orderId')} #{order.id.toString().padStart(5, '0')}</p>
-                            <p className="text-xs text-neutral-500">{new Date(order.order_date).toLocaleDateString()}</p>
+                            <p className="font-bold text-neutral-900">{t('orderId')} #{order.id?.toString().slice(-5).toUpperCase() || '00000'}</p>
+                            <p className="text-xs text-neutral-500">{order.order_date ? new Date(order.order_date).toLocaleDateString() : t('n/a')}</p>
                           </div>
                         </div>
                         <div className="text-right">
@@ -1680,7 +1683,7 @@ export default function App() {
                           {order.customer_name}
                         </td>
                         <td className="px-6 py-4 text-sm text-neutral-500">
-                          {new Date(order.order_date).toLocaleDateString()}
+                          {order.order_date ? new Date(order.order_date).toLocaleDateString() : '-'}
                         </td>
                         <td className="px-6 py-4 text-sm text-neutral-500">
                           {order.delivery_date ? new Date(order.delivery_date).toLocaleDateString() : '-'}
@@ -2680,7 +2683,7 @@ export default function App() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('orderDate')}</label>
-                      <p className="text-neutral-900">{new Date(selectedOrder.order_date).toLocaleString()}</p>
+                      <p className="text-neutral-900">{selectedOrder.order_date ? new Date(selectedOrder.order_date).toLocaleString() : '-'}</p>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('deliveryDate')}</label>
@@ -2890,7 +2893,7 @@ export default function App() {
                                 {entry.change_amount > 0 ? '+' : ''}{entry.change_amount} {t('units')}
                               </span>
                               <span className="text-xs text-neutral-400">
-                                {new Date(entry.created_at).toLocaleString('en-MY')}
+                                {entry.created_at ? new Date(entry.created_at).toLocaleString('en-MY') : '-'}
                               </span>
                             </div>
                             {variation && (

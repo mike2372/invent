@@ -26,11 +26,22 @@ if (!admin.apps.length) {
 
 const fdb = admin.firestore();
 
-// Helper to map Firestore docs to objects with ID
-export const mapDoc = (doc: admin.firestore.DocumentSnapshot) => ({
-    id: doc.id,
-    ...doc.data()
-});
+// Helper to map Firestore docs to objects with ID and handle timestamps
+export const mapDoc = (doc: admin.firestore.DocumentSnapshot) => {
+    const data = doc.data() || {};
+    const result: any = { id: doc.id };
+
+    Object.keys(data).forEach(key => {
+        const value = data[key];
+        // If it's a Firestore Timestamp, convert to ISO string
+        if (value && typeof value === 'object' && typeof value.toDate === 'function') {
+            result[key] = value.toDate().toISOString();
+        } else {
+            result[key] = value;
+        }
+    });
+    return result;
+};
 
 // Ensure a default admin user exists for fresh databases
 export const ensureAdmin = async () => {
