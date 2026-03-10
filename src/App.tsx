@@ -137,6 +137,13 @@ export default function App() {
   const [isConfirmClearOrders, setIsConfirmClearOrders] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const [paymentSettings, setPaymentSettings] = useState({
+    bank_name: '',
+    bank_account: '',
+    account_holder: ''
+  });
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
   const openProfileEdit = () => {
     setProfileFormData({
       full_name: user?.full_name || '',
@@ -184,6 +191,7 @@ export default function App() {
       if (user.role === 'client') {
         setActiveTab('client_dashboard');
       }
+      fetchSettings();
     }
   }, [user]);
 
@@ -213,6 +221,35 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to fetch clients');
+    }
+  };
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch('/api/settings');
+      const data = await res.json();
+      if (data) setPaymentSettings(data);
+    } catch (err) {
+      console.error('Failed to fetch settings');
+    }
+  };
+
+  const handleUpdateSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSettings(true);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentSettings)
+      });
+      if (res.ok) {
+        alert('Settings updated successfully');
+      }
+    } catch (err) {
+      console.error('Failed to update settings');
+    } finally {
+      setIsSavingSettings(false);
     }
   };
 
@@ -591,6 +628,12 @@ export default function App() {
     }
   };
 
+  const formatDate = (date: any) => {
+    if (!date) return t('n/a');
+    const d = new Date(date);
+    return isNaN(d.getTime()) ? t('n/a') : d.toLocaleDateString();
+  };
+
   const confirmCancellation = async () => {
     if (!orderToCancel) return;
 
@@ -940,6 +983,13 @@ export default function App() {
                       <UserIcon size={20} />
                       {t('clients')}
                     </button>
+                    <button
+                      onClick={() => { setActiveTab('settings'); setIsMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'settings' ? 'bg-emerald-50 text-emerald-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                    >
+                      <Settings2 size={20} />
+                      {t('settings')}
+                    </button>
                   </>
                 ) : (
                   <>
@@ -1023,6 +1073,13 @@ export default function App() {
               >
                 <UserIcon size={20} />
                 {t('clients')}
+              </button>
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'settings' ? 'bg-emerald-50 text-emerald-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+              >
+                <Settings2 size={20} />
+                {t('settings')}
               </button>
             </>
           ) : (
@@ -1279,12 +1336,18 @@ export default function App() {
                           </div>
                           <div>
                             <p className="font-bold text-neutral-900">{t('orderId')} #{order.id?.toString().slice(-5).toUpperCase() || '00000'}</p>
-                            <p className="text-xs text-neutral-500">{order.order_date ? new Date(order.order_date).toLocaleDateString() : t('n/a')}</p>
+                            <p className="text-xs text-neutral-500">{formatDate(order.order_date)}</p>
                           </div>
                         </div>
                         <div className="flex flex-col gap-2">
                           {order.status === 'Pending' && (
                             <div className="flex gap-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setActiveTab('manual_payment'); }}
+                                className="px-3 py-1.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-lg hover:bg-emerald-200 transition-colors shadow-sm whitespace-nowrap"
+                              >
+                                {t('bankTransfer')}
+                              </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handlePayWithFiuu(order.id, 'tng'); }}
                                 className="px-3 py-1.5 bg-[#0055A4] text-white text-[10px] font-bold rounded-lg hover:bg-[#004488] transition-colors shadow-sm whitespace-nowrap"
@@ -1314,1056 +1377,805 @@ export default function App() {
               </div>
             </div>
           </div>
-        )}
+        )
+        }
 
-        {activeTab === 'dashboard' && user.role === 'admin' && (
-          <>
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-              <div>
-                <h1 className="text-2xl font-bold text-neutral-900">{t('dashboard')}</h1>
-                <p className="text-neutral-500">{t('welcomeBack')}, {user.username}</p>
+        {
+          activeTab === 'dashboard' && user.role === 'admin' && (
+            <>
+              <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div>
+                  <h1 className="text-2xl font-bold text-neutral-900">{t('dashboard')}</h1>
+                  <p className="text-neutral-500">{t('welcomeBack')}, {user.username}</p>
+                </div>
+              </header>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {[
+                  { label: t('totalProducts'), value: stats.totalItems, icon: Box, color: 'text-blue-600', bg: 'bg-blue-50' },
+                  { label: t('inventory'), value: stats.totalStock, icon: Package, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                  { label: t('stockValue'), value: `RM ${stats.totalValue.toLocaleString('en-MY', { minimumFractionDigits: 2 })}`, icon: DollarSign, color: 'text-amber-600', bg: 'bg-amber-50' },
+                  { label: t('lowStockItems'), value: stats.lowStock, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+                  { label: t('totalOrders'), value: stats.totalOrders, icon: ShoppingCart, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                  { label: t('pendingOrders'), value: stats.pendingOrders, icon: ClipboardList, color: 'text-orange-600', bg: 'bg-orange-50' },
+                  { label: t('totalRevenue'), value: `RM ${stats.totalRevenue.toLocaleString('en-MY', { minimumFractionDigits: 2 })}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                ].map((stat, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`${stat.bg} p-3 rounded-xl`}>
+                        <stat.icon className={stat.color} size={24} />
+                      </div>
+                    </div>
+                    <p className="text-neutral-500 text-sm font-medium">{stat.label}</p>
+                    <h3 className="text-2xl font-bold text-neutral-900 mt-1">{stat.value}</h3>
+                  </motion.div>
+                ))}
               </div>
-            </header>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {[
-                { label: t('totalProducts'), value: stats.totalItems, icon: Box, color: 'text-blue-600', bg: 'bg-blue-50' },
-                { label: t('inventory'), value: stats.totalStock, icon: Package, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                { label: t('stockValue'), value: `RM ${stats.totalValue.toLocaleString('en-MY', { minimumFractionDigits: 2 })}`, icon: DollarSign, color: 'text-amber-600', bg: 'bg-amber-50' },
-                { label: t('lowStockItems'), value: stats.lowStock, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
-                { label: t('totalOrders'), value: stats.totalOrders, icon: ShoppingCart, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                { label: t('pendingOrders'), value: stats.pendingOrders, icon: ClipboardList, color: 'text-orange-600', bg: 'bg-orange-50' },
-                { label: t('totalRevenue'), value: `RM ${stats.totalRevenue.toLocaleString('en-MY', { minimumFractionDigits: 2 })}`, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-              ].map((stat, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`${stat.bg} p-3 rounded-xl`}>
-                      <stat.icon className={stat.color} size={24} />
+              {/* Low Stock Alerts */}
+              {stats.lowStock > 0 && (
+                <div className="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden mb-8">
+                  <div className="p-6 border-b border-red-50 bg-red-50/30 flex items-center gap-3">
+                    <div className="bg-red-100 p-2 rounded-lg text-red-600">
+                      <AlertTriangle size={20} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-neutral-900">{t('lowStockAlerts')}</h2>
+                      <p className="text-sm text-neutral-500">{t('restockNeeded')}</p>
                     </div>
                   </div>
-                  <p className="text-neutral-500 text-sm font-medium">{stat.label}</p>
-                  <h3 className="text-2xl font-bold text-neutral-900 mt-1">{stat.value}</h3>
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Low Stock Alerts */}
-            {stats.lowStock > 0 && (
-              <div className="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden mb-8">
-                <div className="p-6 border-b border-red-50 bg-red-50/30 flex items-center gap-3">
-                  <div className="bg-red-100 p-2 rounded-lg text-red-600">
-                    <AlertTriangle size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-neutral-900">{t('lowStockAlerts')}</h2>
-                    <p className="text-sm text-neutral-500">{t('restockNeeded')}</p>
+                  <div className="divide-y divide-neutral-100">
+                    {products.filter(p => p.quantity <= p.min_stock).map(product => (
+                      <div key={product.id} className="p-4 flex items-center justify-between hover:bg-neutral-50 transition-colors">
+                        <div className="flex items-center gap-4">
+                          {product.image_url ? (
+                            <img
+                              src={product.image_url}
+                              alt={product.name}
+                              className="w-12 h-12 object-cover rounded-lg border border-neutral-200"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 bg-neutral-100 rounded-lg flex items-center justify-center text-neutral-400">
+                              <Package size={20} />
+                            </div>
+                          )}
+                          <div>
+                            <h3 className="font-bold text-neutral-900">{product.name}</h3>
+                            <div className="flex items-center gap-2 text-sm text-neutral-500">
+                              <span className="font-mono bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-200 text-xs">{product.sku}</span>
+                              <span>•</span>
+                              <span>{t('minRequired')}: {product.min_stock}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-6">
+                          <div className="text-right hidden sm:block">
+                            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">{t('currentStock')}</p>
+                            <p className="font-bold text-red-600 text-lg">{product.quantity} <span className="text-sm text-neutral-400 font-normal">{product.unit_of_measure}</span></p>
+                          </div>
+                          <button
+                            onClick={() => openAdjust(product)}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm shadow-emerald-100 flex items-center gap-2"
+                          >
+                            <ArrowUpDown size={16} />
+                            {t('restock')}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="divide-y divide-neutral-100">
-                  {products.filter(p => p.quantity <= p.min_stock).map(product => (
-                    <div key={product.id} className="p-4 flex items-center justify-between hover:bg-neutral-50 transition-colors">
-                      <div className="flex items-center gap-4">
+              )}
+            </>
+          )
+        }
+
+        {
+          activeTab === 'inventory' && (
+            <>
+              <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div>
+                  <h1 className="text-2xl font-bold text-neutral-900">{t('inventoryManagement')}</h1>
+                  <p className="text-neutral-500">{t('manageProducts')}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {selectedIds.length > 0 && (
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{}}
+                      onClick={() => setIsBulkModalOpen(true)}
+                      className="bg-amber-100 text-amber-700 px-4 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-amber-200 transition-all shadow-sm border border-amber-200"
+                    >
+                      <Settings2 size={20} />
+                      {t('bulkUpdate')} ({selectedIds.length})
+                    </motion.button>
+                  )}
+                  <input
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    ref={fileInputRef}
+                    onChange={handleImportCSV}
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-white border border-neutral-200 text-neutral-600 px-4 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-neutral-50 transition-all shadow-sm"
+                  >
+                    <Upload size={20} />
+                    {t('import')} CSV
+                  </button>
+                  <button
+                    onClick={exportToCSV}
+                    className="bg-white border border-neutral-200 text-neutral-600 px-4 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-neutral-50 transition-all shadow-sm"
+                  >
+                    <Download size={20} />
+                    {t('export')} CSV
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingProduct(null);
+                      setFormData({ name: '', sku: '', category: '', price: '', quantity: '', min_stock: '5', unit_of_measure: 'pcs', image_url: '', reason: '' });
+                      setIsModalOpen(true);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-emerald-100"
+                  >
+                    <Plus size={20} />
+                    {t('addProduct')}
+                  </button>
+                </div>
+              </header>
+
+              {/* Inventory Table */}
+              <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <h2 className="text-lg font-bold text-neutral-900">{t('productList')}</h2>
+                  <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder={t('searchProducts')}
+                      className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="md:hidden grid grid-cols-1 gap-4 p-4">
+                  {filteredProducts.map((product) => (
+                    <div key={product.id} className="bg-neutral-50 rounded-2xl p-4 border border-neutral-100 flex flex-col gap-4">
+                      <div className="flex gap-4">
                         {product.image_url ? (
-                          <img
-                            src={product.image_url}
-                            alt={product.name}
-                            className="w-12 h-12 object-cover rounded-lg border border-neutral-200"
-                          />
+                          <img src={product.image_url} alt={product.name} className="w-20 h-20 object-cover rounded-xl border border-neutral-200" />
                         ) : (
-                          <div className="w-12 h-12 bg-neutral-100 rounded-lg flex items-center justify-center text-neutral-400">
-                            <Package size={20} />
+                          <div className="w-20 h-20 bg-white rounded-xl flex items-center justify-center border border-neutral-200 text-neutral-400">
+                            <Package size={32} />
                           </div>
                         )}
-                        <div>
-                          <h3 className="font-bold text-neutral-900">{product.name}</h3>
-                          <div className="flex items-center gap-2 text-sm text-neutral-500">
-                            <span className="font-mono bg-neutral-100 px-1.5 py-0.5 rounded border border-neutral-200 text-xs">{product.sku}</span>
-                            <span>•</span>
-                            <span>{t('minRequired')}: {product.min_stock}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="px-2 py-0.5 bg-neutral-200 text-neutral-600 rounded-md text-[10px] font-bold uppercase">{product.category}</span>
+                            <button onClick={() => toggleSelect(product.id)} className="text-neutral-400 hover:text-emerald-600">
+                              {selectedIds.includes(product.id) ? <CheckSquare size={20} className="text-emerald-600" /> : <Square size={20} />}
+                            </button>
+                          </div>
+                          <h3 className="font-bold text-neutral-900 truncate">{product.name}</h3>
+                          <p className="text-xs text-neutral-500 font-mono mb-2">{product.sku}</p>
+                          <div className="flex items-center justify-between">
+                            {product.has_variations && Array.isArray(product.variations) && product.variations.length > 0 ? (
+                              <div className="flex flex-col">
+                                <span className="text-[10px] text-neutral-400 uppercase">From</span>
+                                <span className="font-bold text-emerald-600">RM {Math.min(...product.variations.map(v => v.price)).toFixed(2)}</span>
+                              </div>
+                            ) : (
+                              <span className="font-bold text-emerald-600">RM {product.price.toFixed(2)}</span>
+                            )}
+                            <div className="flex flex-col items-end">
+                              <span className={`font-bold ${product.quantity <= product.min_stock ? 'text-red-600' : 'text-neutral-700'}`}>{product.quantity}</span>
+                              <span className="text-[10px] text-neutral-400 uppercase font-medium">{product.unit_of_measure}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-right hidden sm:block">
-                          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">{t('currentStock')}</p>
-                          <p className="font-bold text-red-600 text-lg">{product.quantity} <span className="text-sm text-neutral-400 font-normal">{product.unit_of_measure}</span></p>
-                        </div>
-                        <button
-                          onClick={() => openAdjust(product)}
-                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm shadow-emerald-100 flex items-center gap-2"
-                        >
-                          <ArrowUpDown size={16} />
-                          {t('restock')}
+                      <div className="grid grid-cols-4 gap-2 pt-3 border-t border-neutral-200">
+                        <button onClick={() => openAdjust(product)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                          <ArrowUpDown size={20} />
+                        </button>
+                        <button onClick={() => fetchHistory(product)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                          <History size={20} />
+                        </button>
+                        <button onClick={() => openEdit(product)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
+                          <Edit2 size={20} />
+                        </button>
+                        <button onClick={() => handleDelete(product.id)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-red-600 hover:bg-red-50 transition-colors">
+                          <Trash2 size={20} />
                         </button>
                       </div>
                     </div>
                   ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {activeTab === 'inventory' && (
-          <>
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-              <div>
-                <h1 className="text-2xl font-bold text-neutral-900">{t('inventoryManagement')}</h1>
-                <p className="text-neutral-500">{t('manageProducts')}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                {selectedIds.length > 0 && (
-                  <motion.button
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{}}
-                    onClick={() => setIsBulkModalOpen(true)}
-                    className="bg-amber-100 text-amber-700 px-4 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-amber-200 transition-all shadow-sm border border-amber-200"
-                  >
-                    <Settings2 size={20} />
-                    {t('bulkUpdate')} ({selectedIds.length})
-                  </motion.button>
-                )}
-                <input
-                  type="file"
-                  accept=".csv"
-                  className="hidden"
-                  ref={fileInputRef}
-                  onChange={handleImportCSV}
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="bg-white border border-neutral-200 text-neutral-600 px-4 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-neutral-50 transition-all shadow-sm"
-                >
-                  <Upload size={20} />
-                  {t('import')} CSV
-                </button>
-                <button
-                  onClick={exportToCSV}
-                  className="bg-white border border-neutral-200 text-neutral-600 px-4 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-neutral-50 transition-all shadow-sm"
-                >
-                  <Download size={20} />
-                  {t('export')} CSV
-                </button>
-                <button
-                  onClick={() => {
-                    setEditingProduct(null);
-                    setFormData({ name: '', sku: '', category: '', price: '', quantity: '', min_stock: '5', unit_of_measure: 'pcs', image_url: '', reason: '' });
-                    setIsModalOpen(true);
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-emerald-100"
-                >
-                  <Plus size={20} />
-                  {t('addProduct')}
-                </button>
-              </div>
-            </header>
-
-            {/* Inventory Table */}
-            <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h2 className="text-lg font-bold text-neutral-900">{t('productList')}</h2>
-                <div className="relative w-full md:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
-                  <input
-                    type="text"
-                    placeholder={t('searchProducts')}
-                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="md:hidden grid grid-cols-1 gap-4 p-4">
-                {filteredProducts.map((product) => (
-                  <div key={product.id} className="bg-neutral-50 rounded-2xl p-4 border border-neutral-100 flex flex-col gap-4">
-                    <div className="flex gap-4">
-                      {product.image_url ? (
-                        <img src={product.image_url} alt={product.name} className="w-20 h-20 object-cover rounded-xl border border-neutral-200" />
-                      ) : (
-                        <div className="w-20 h-20 bg-white rounded-xl flex items-center justify-center border border-neutral-200 text-neutral-400">
-                          <Package size={32} />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="px-2 py-0.5 bg-neutral-200 text-neutral-600 rounded-md text-[10px] font-bold uppercase">{product.category}</span>
-                          <button onClick={() => toggleSelect(product.id)} className="text-neutral-400 hover:text-emerald-600">
-                            {selectedIds.includes(product.id) ? <CheckSquare size={20} className="text-emerald-600" /> : <Square size={20} />}
-                          </button>
-                        </div>
-                        <h3 className="font-bold text-neutral-900 truncate">{product.name}</h3>
-                        <p className="text-xs text-neutral-500 font-mono mb-2">{product.sku}</p>
-                        <div className="flex items-center justify-between">
-                          {product.has_variations && Array.isArray(product.variations) && product.variations.length > 0 ? (
-                            <div className="flex flex-col">
-                              <span className="text-[10px] text-neutral-400 uppercase">From</span>
-                              <span className="font-bold text-emerald-600">RM {Math.min(...product.variations.map(v => v.price)).toFixed(2)}</span>
-                            </div>
-                          ) : (
-                            <span className="font-bold text-emerald-600">RM {product.price.toFixed(2)}</span>
-                          )}
-                          <div className="flex flex-col items-end">
-                            <span className={`font-bold ${product.quantity <= product.min_stock ? 'text-red-600' : 'text-neutral-700'}`}>{product.quantity}</span>
-                            <span className="text-[10px] text-neutral-400 uppercase font-medium">{product.unit_of_measure}</span>
-                          </div>
-                        </div>
-                      </div>
+                  {filteredProducts.length === 0 && (
+                    <div className="text-center py-12 text-neutral-500">
+                      {t('noProductsFound')}
                     </div>
-                    <div className="grid grid-cols-4 gap-2 pt-3 border-t border-neutral-200">
-                      <button onClick={() => openAdjust(product)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-amber-600 hover:bg-amber-50 transition-colors">
-                        <ArrowUpDown size={20} />
-                      </button>
-                      <button onClick={() => fetchHistory(product)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">
-                        <History size={20} />
-                      </button>
-                      <button onClick={() => openEdit(product)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
-                        <Edit2 size={20} />
-                      </button>
-                      <button onClick={() => handleDelete(product.id)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-red-600 hover:bg-red-50 transition-colors">
-                        <Trash2 size={20} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {filteredProducts.length === 0 && (
-                  <div className="text-center py-12 text-neutral-500">
-                    {t('noProductsFound')}
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
 
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider">
-                      <th className="px-6 py-4 font-semibold w-10">
-                        <button
-                          onClick={toggleSelectAll}
-                          className="text-neutral-400 hover:text-emerald-600 transition-colors"
-                        >
-                          {selectedIds.length === filteredProducts.length && filteredProducts.length > 0 ? (
-                            <CheckSquare size={20} className="text-emerald-600" />
-                          ) : (
-                            <Square size={20} />
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-6 py-4 font-semibold">{t('productDetails')}</th>
-                      <th className="px-6 py-4 font-semibold">{t('category')}</th>
-                      <th className="px-6 py-4 font-semibold text-right">{t('priceRM')}</th>
-                      <th className="px-6 py-4 font-semibold text-center">{t('stockQty')}</th>
-                      <th className="px-6 py-4 font-semibold">{t('status')}</th>
-                      <th className="px-6 py-4 font-semibold text-right">{t('actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-100">
-                    {filteredProducts.map((product) => (
-                      <tr
-                        key={product.id}
-                        className={`hover:bg-neutral-50 transition-colors group ${selectedIds.includes(product.id) ? 'bg-emerald-50/30' : ''}`}
-                      >
-                        <td className="px-6 py-4">
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider">
+                        <th className="px-6 py-4 font-semibold w-10">
                           <button
-                            onClick={() => toggleSelect(product.id)}
+                            onClick={toggleSelectAll}
                             className="text-neutral-400 hover:text-emerald-600 transition-colors"
                           >
-                            {selectedIds.includes(product.id) ? (
+                            {selectedIds.length === filteredProducts.length && filteredProducts.length > 0 ? (
                               <CheckSquare size={20} className="text-emerald-600" />
                             ) : (
                               <Square size={20} />
                             )}
                           </button>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            {product.image_url && (
-                              <img
-                                src={product.image_url}
-                                alt={product.name}
-                                className="w-10 h-10 object-cover rounded-lg border border-neutral-200"
-                              />
+                        </th>
+                        <th className="px-6 py-4 font-semibold">{t('productDetails')}</th>
+                        <th className="px-6 py-4 font-semibold">{t('category')}</th>
+                        <th className="px-6 py-4 font-semibold text-right">{t('priceRM')}</th>
+                        <th className="px-6 py-4 font-semibold text-center">{t('stockQty')}</th>
+                        <th className="px-6 py-4 font-semibold">{t('status')}</th>
+                        <th className="px-6 py-4 font-semibold text-right">{t('actions')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100">
+                      {filteredProducts.map((product) => (
+                        <tr
+                          key={product.id}
+                          className={`hover:bg-neutral-50 transition-colors group ${selectedIds.includes(product.id) ? 'bg-emerald-50/30' : ''}`}
+                        >
+                          <td className="px-6 py-4">
+                            <button
+                              onClick={() => toggleSelect(product.id)}
+                              className="text-neutral-400 hover:text-emerald-600 transition-colors"
+                            >
+                              {selectedIds.includes(product.id) ? (
+                                <CheckSquare size={20} className="text-emerald-600" />
+                              ) : (
+                                <Square size={20} />
+                              )}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              {product.image_url && (
+                                <img
+                                  src={product.image_url}
+                                  alt={product.name}
+                                  className="w-10 h-10 object-cover rounded-lg border border-neutral-200"
+                                />
+                              )}
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-neutral-900">{product.name}</span>
+                                <span className="text-xs text-neutral-500 font-mono">{product.sku}</span>
+                                {product.has_variations && (
+                                  <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 w-fit mt-1">
+                                    {product.variations?.length} Variations
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="px-3 py-1 bg-neutral-100 text-neutral-600 rounded-full text-xs font-medium">
+                              {product.category}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right font-medium text-neutral-900">
+                            {product.has_variations && Array.isArray(product.variations) && product.variations.length > 0 ? (
+                              <div className="flex flex-col items-end">
+                                <span className="text-[10px] text-neutral-400 uppercase">From</span>
+                                <span>{Math.min(...product.variations.map(v => v.price)).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            ) : (
+                              product.price.toLocaleString('en-MY', { minimumFractionDigits: 2 })
                             )}
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-neutral-900">{product.name}</span>
-                              <span className="text-xs text-neutral-500 font-mono">{product.sku}</span>
-                              {product.has_variations && (
-                                <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 w-fit mt-1">
-                                  {product.variations?.length} Variations
-                                </span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex flex-col items-center">
+                              <span className={`font-bold ${product.quantity <= product.min_stock ? 'text-red-600' : 'text-neutral-900'}`}>
+                                {product.quantity}
+                              </span>
+                              <span className="text-[10px] text-neutral-400 uppercase font-medium">{product.unit_of_measure}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            {product.quantity <= product.min_stock ? (
+                              <span className="flex items-center gap-1 text-red-600 text-xs font-bold uppercase">
+                                <AlertTriangle size={14} />
+                                Low Stock
+                              </span>
+                            ) : (
+                              <span className="text-emerald-600 text-xs font-bold uppercase">In Stock</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => openAdjust(product)}
+                                title="Adjust Stock"
+                                className="p-2 text-neutral-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                              >
+                                <ArrowUpDown size={18} />
+                              </button>
+                              <button
+                                onClick={() => fetchHistory(product)}
+                                title="View History"
+                                className="p-2 text-neutral-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              >
+                                <History size={18} />
+                              </button>
+                              <button
+                                onClick={() => openEdit(product)}
+                                title="Edit Product"
+                                className="p-2 text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(product.id)}
+                                title="Delete Product"
+                                className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredProducts.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-12 text-center text-neutral-500">
+                            {t('noProductsFound')}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )
+        }
+
+        {
+          activeTab === 'orders' && (
+            <>
+              <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div>
+                  <h1 className="text-2xl font-bold text-neutral-900">{t('orderManagement')}</h1>
+                  <p className="text-neutral-500">{t('manageOrders')}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {user.role === 'admin' && (
+                    <button
+                      onClick={() => setIsConfirmClearOrders(true)}
+                      className="border border-red-200 text-red-600 hover:bg-red-50 px-4 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all"
+                    >
+                      <Trash2 size={18} />
+                      Clear History
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setOrderFormData({ customer_name: '', delivery_date: '', items: [] });
+                      setIsOrderModalOpen(true);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-emerald-100"
+                  >
+                    <ShoppingCart size={20} />
+                    {t('placeOrder')}
+                  </button>
+                </div>
+              </header>
+
+              <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <h2 className="text-lg font-bold text-neutral-900">{t('orders')}</h2>
+                  <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder={t('searchOrders')}
+                      className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      value={orderSearch}
+                      onChange={e => setOrderSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider">
+                        <th className="px-6 py-4 font-semibold">{t('orderId')}</th>
+                        <th className="px-6 py-4 font-semibold">{t('customer')}</th>
+                        <th className="px-6 py-4 font-semibold">{t('orderDate')}</th>
+                        <th className="px-6 py-4 font-semibold">{t('deliveryDate')}</th>
+                        <th className="px-6 py-4 font-semibold text-right">{t('total')} (RM)</th>
+                        <th className="px-6 py-4 font-semibold">{t('status')}</th>
+                        <th className="px-6 py-4 font-semibold text-right">{t('actions')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100">
+                      {filteredOrders.map((order) => (
+                        <tr key={order.id} className="hover:bg-neutral-50 transition-colors group">
+                          <td className="px-6 py-4 font-mono text-sm text-neutral-500">
+                            #{order.id.toString().padStart(5, '0')}
+                          </td>
+                          <td className="px-6 py-4 font-semibold text-neutral-900">
+                            {order.customer_name}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-neutral-500">
+                            {formatDate(order.order_date)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-neutral-500">
+                            {formatDate(order.delivery_date)}
+                          </td>
+                          <td className="px-6 py-4 text-right font-medium text-neutral-900">
+                            {order.total_amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${order.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
+                              order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                order.status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
+                                  order.status === 'Processing' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-neutral-100 text-neutral-600'
+                              }`}>
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => fetchOrderDetails(order.id)}
+                                className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm flex items-center gap-1"
+                              >
+                                {t('details')}
+                                <ChevronRight size={16} />
+                              </button>
+                              {user.role === 'client' && order.status === 'Pending' && (
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setActiveTab('manual_payment')}
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors border border-emerald-200 shadow-sm"
+                                  >
+                                    Bank
+                                  </button>
+                                  <button
+                                    onClick={() => handlePayWithFiuu(order.id, 'tng')}
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0055A4] text-white hover:bg-[#004488] transition-colors border border-blue-700 shadow-sm"
+                                  >
+                                    TNG
+                                  </button>
+                                  <button
+                                    onClick={() => handlePayWithFiuu(order.id, 'all')}
+                                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors border border-neutral-200 shadow-sm"
+                                  >
+                                    {t('others')}
+                                  </button>
+                                </div>
+                              )}
+                              {user.role === 'client' && ['Pending', 'Processing'].includes(order.status) && (
+                                <button
+                                  onClick={() => handleUpdateOrderStatus(order.id, 'Cancelled')}
+                                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors border border-red-100"
+                                >
+                                  {t('cancelOrder')}
+                                </button>
                               )}
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-3 py-1 bg-neutral-100 text-neutral-600 rounded-full text-xs font-medium">
-                            {product.category}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right font-medium text-neutral-900">
-                          {product.has_variations && Array.isArray(product.variations) && product.variations.length > 0 ? (
-                            <div className="flex flex-col items-end">
-                              <span className="text-[10px] text-neutral-400 uppercase">From</span>
-                              <span>{Math.min(...product.variations.map(v => v.price)).toLocaleString('en-MY', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          ) : (
-                            product.price.toLocaleString('en-MY', { minimumFractionDigits: 2 })
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex flex-col items-center">
-                            <span className={`font-bold ${product.quantity <= product.min_stock ? 'text-red-600' : 'text-neutral-900'}`}>
-                              {product.quantity}
-                            </span>
-                            <span className="text-[10px] text-neutral-400 uppercase font-medium">{product.unit_of_measure}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          {product.quantity <= product.min_stock ? (
-                            <span className="flex items-center gap-1 text-red-600 text-xs font-bold uppercase">
-                              <AlertTriangle size={14} />
-                              Low Stock
-                            </span>
-                          ) : (
-                            <span className="text-emerald-600 text-xs font-bold uppercase">In Stock</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => openAdjust(product)}
-                              title="Adjust Stock"
-                              className="p-2 text-neutral-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                            >
-                              <ArrowUpDown size={18} />
-                            </button>
-                            <button
-                              onClick={() => fetchHistory(product)}
-                              title="View History"
-                              className="p-2 text-neutral-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            >
-                              <History size={18} />
-                            </button>
-                            <button
-                              onClick={() => openEdit(product)}
-                              title="Edit Product"
-                              className="p-2 text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(product.id)}
-                              title="Delete Product"
-                              className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredProducts.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-neutral-500">
-                          {t('noProductsFound')}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredOrders.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-12 text-center text-neutral-500">
+                            {t('noOrdersFound')}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )
+        }
 
-        {activeTab === 'orders' && (
-          <>
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-              <div>
-                <h1 className="text-2xl font-bold text-neutral-900">{t('orderManagement')}</h1>
-                <p className="text-neutral-500">{t('manageOrders')}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                {user.role === 'admin' && (
-                  <button
-                    onClick={() => setIsConfirmClearOrders(true)}
-                    className="border border-red-200 text-red-600 hover:bg-red-50 px-4 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all"
-                  >
-                    <Trash2 size={18} />
-                    Clear History
-                  </button>
-                )}
+        {
+          activeTab === 'clients' && user.role === 'admin' && (
+            <div className="space-y-8">
+              <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div>
+                  <h1 className="text-2xl font-bold text-neutral-900">{t('clientManagement')}</h1>
+                  <p className="text-neutral-500">{t('manageClients')}</p>
+                </div>
                 <button
                   onClick={() => {
-                    setOrderFormData({ customer_name: '', delivery_date: '', items: [] });
-                    setIsOrderModalOpen(true);
+                    setEditingClient(null);
+                    setClientFormData({ username: '', password: '', full_name: '', email: '', phone: '', role: 'client' });
+                    setIsClientModalOpen(true);
                   }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-emerald-100"
                 >
-                  <ShoppingCart size={20} />
-                  {t('placeOrder')}
+                  <Plus size={20} />
+                  {t('addClient')}
+                </button>
+              </header>
+
+              <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <h2 className="text-lg font-bold text-neutral-900">{t('clientList')}</h2>
+                  <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder={t('searchClients')}
+                      className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      value={clientSearch}
+                      onChange={e => setClientSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider">
+                        <th className="px-6 py-4 font-semibold">{t('clientDetails')}</th>
+                        <th className="px-6 py-4 font-semibold">{t('contactInfo')}</th>
+                        <th className="px-6 py-4 font-semibold text-right">{t('actions')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100">
+                      {clients.filter(c =>
+                        c.username.toLowerCase().includes(clientSearch.toLowerCase()) ||
+                        (c.full_name && c.full_name.toLowerCase().includes(clientSearch.toLowerCase())) ||
+                        (c.email && c.email.toLowerCase().includes(clientSearch.toLowerCase()))
+                      ).map((client) => (
+                        <tr key={client.id} className="hover:bg-neutral-50 transition-colors group">
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-neutral-900">{client.full_name || t('noName')}</span>
+                              <span className="text-xs text-neutral-500">@{client.username}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col text-sm">
+                              <span className="text-neutral-700">{client.email || '-'}</span>
+                              <span className="text-neutral-500">{client.phone || '-'}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => {
+                                  setEditingClient(client);
+                                  setClientFormData({
+                                    username: client.username,
+                                    password: '',
+                                    full_name: client.full_name || '',
+                                    email: client.email || '',
+                                    phone: client.phone || '',
+                                    role: client.role
+                                  });
+                                  setIsClientModalOpen(true);
+                                }}
+                                className="p-2 text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setDeleteClientError('');
+                                  setClientToDelete(client);
+                                }}
+                                className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {clients.length === 0 && (
+                        <tr>
+                          <td colSpan={3} className="px-6 py-12 text-center text-neutral-500">
+                            {t('noClients')}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )
+        }
+
+        {
+          activeTab === 'settings' && user.role === 'admin' && (
+            <div className="max-w-2xl">
+              <header className="mb-8">
+                <h1 className="text-2xl font-bold text-neutral-900">{t('settings')}</h1>
+                <p className="text-neutral-500">Configure application and payment settings</p>
+              </header>
+
+              <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-neutral-100">
+                  <h2 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
+                    <DollarSign className="text-emerald-600" size={20} />
+                    {t('bankTransfer')}
+                  </h2>
+                </div>
+                <form onSubmit={handleUpdateSettings} className="p-6 space-y-6">
+                  <div className="grid grid-cols-1 gap-6">
+                    <div>
+                      <label className="block text-sm font-bold text-neutral-700 mb-2">{t('bankName')}</label>
+                      <input
+                        type="text"
+                        className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        placeholder="e.g. Maybank, CIMB"
+                        value={paymentSettings.bank_name}
+                        onChange={e => setPaymentSettings({ ...paymentSettings, bank_name: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-neutral-700 mb-2">{t('accountNumber')}</label>
+                      <input
+                        type="text"
+                        className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        placeholder="e.g. 1234567890"
+                        value={paymentSettings.bank_account}
+                        onChange={e => setPaymentSettings({ ...paymentSettings, bank_account: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-neutral-700 mb-2">{t('accountHolder')}</label>
+                      <input
+                        type="text"
+                        className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        placeholder="e.g. StockMaster Trading"
+                        value={paymentSettings.account_holder}
+                        onChange={e => setPaymentSettings({ ...paymentSettings, account_holder: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4">
+                    <button
+                      type="submit"
+                      disabled={isSavingSettings}
+                      className="w-full md:w-auto px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
+                    >
+                      {isSavingSettings ? t('saving') : t('saveChanges')}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )
+        }
+
+        {/* Manual Payment Info Modal for Clients */}
+        {
+          activeTab === 'manual_payment' && user.role === 'client' && (
+            <div className="max-w-2xl bg-white p-8 rounded-2xl border border-neutral-200 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
+                  <DollarSign size={24} />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-neutral-900">{t('bankTransfer')}</h1>
+                  <p className="text-neutral-500">{t('manualTransferDesc')}</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 p-6 bg-neutral-50 rounded-xl border border-neutral-100">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-400 uppercase mb-1">{t('bankName')}</label>
+                  <p className="text-lg font-bold text-neutral-900">{paymentSettings.bank_name || '-'}</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-400 uppercase mb-1">{t('accountNumber')}</label>
+                  <p className="text-2xl font-mono font-bold text-emerald-600 tracking-wider">
+                    {paymentSettings.bank_account || '-'}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-400 uppercase mb-1">{t('accountHolder')}</label>
+                  <p className="text-lg font-bold text-neutral-900">{paymentSettings.account_holder || '-'}</p>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-neutral-100">
+                <button
+                  onClick={() => setActiveTab('client_dashboard')}
+                  className="w-full bg-neutral-900 text-white font-bold py-4 rounded-xl hover:bg-neutral-800 transition-colors"
+                >
+                  {t('back')}
                 </button>
               </div>
-            </header>
-
-            <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h2 className="text-lg font-bold text-neutral-900">{t('orders')}</h2>
-                <div className="relative w-full md:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
-                  <input
-                    type="text"
-                    placeholder={t('searchOrders')}
-                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                    value={orderSearch}
-                    onChange={e => setOrderSearch(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider">
-                      <th className="px-6 py-4 font-semibold">{t('orderId')}</th>
-                      <th className="px-6 py-4 font-semibold">{t('customer')}</th>
-                      <th className="px-6 py-4 font-semibold">{t('orderDate')}</th>
-                      <th className="px-6 py-4 font-semibold">{t('deliveryDate')}</th>
-                      <th className="px-6 py-4 font-semibold text-right">{t('total')} (RM)</th>
-                      <th className="px-6 py-4 font-semibold">{t('status')}</th>
-                      <th className="px-6 py-4 font-semibold text-right">{t('actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-100">
-                    {filteredOrders.map((order) => (
-                      <tr key={order.id} className="hover:bg-neutral-50 transition-colors group">
-                        <td className="px-6 py-4 font-mono text-sm text-neutral-500">
-                          #{order.id.toString().padStart(5, '0')}
-                        </td>
-                        <td className="px-6 py-4 font-semibold text-neutral-900">
-                          {order.customer_name}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-neutral-500">
-                          {order.order_date ? new Date(order.order_date).toLocaleDateString() : '-'}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-neutral-500">
-                          {order.delivery_date ? new Date(order.delivery_date).toLocaleDateString() : '-'}
-                        </td>
-                        <td className="px-6 py-4 text-right font-medium text-neutral-900">
-                          {order.total_amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${order.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
-                            order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
-                              order.status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
-                                order.status === 'Processing' ? 'bg-amber-100 text-amber-700' :
-                                  'bg-neutral-100 text-neutral-600'
-                            }`}>
-                            {order.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => fetchOrderDetails(order.id)}
-                              className="text-emerald-600 hover:text-emerald-700 font-semibold text-sm flex items-center gap-1"
-                            >
-                              {t('details')}
-                              <ChevronRight size={16} />
-                            </button>
-                            {user.role === 'client' && order.status === 'Pending' && (
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handlePayWithFiuu(order.id, 'tng')}
-                                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#0055A4] text-white hover:bg-[#004488] transition-colors border border-blue-700 shadow-sm"
-                                >
-                                  TNG
-                                </button>
-                                <button
-                                  onClick={() => handlePayWithFiuu(order.id, 'all')}
-                                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-colors border border-neutral-200 shadow-sm"
-                                >
-                                  {t('others')}
-                                </button>
-                              </div>
-                            )}
-                            {user.role === 'client' && ['Pending', 'Processing'].includes(order.status) && (
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'Cancelled')}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors border border-red-100"
-                              >
-                                {t('cancelOrder')}
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredOrders.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-neutral-500">
-                          {t('noOrdersFound')}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
             </div>
-          </>
-        )}
+          )
+        }
 
-        {activeTab === 'clients' && user.role === 'admin' && (
-          <div className="space-y-8">
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-              <div>
-                <h1 className="text-2xl font-bold text-neutral-900">{t('clientManagement')}</h1>
-                <p className="text-neutral-500">{t('manageClients')}</p>
-              </div>
-              <button
-                onClick={() => {
-                  setEditingClient(null);
-                  setClientFormData({ username: '', password: '', full_name: '', email: '', phone: '', role: 'client' });
-                  setIsClientModalOpen(true);
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-emerald-100"
-              >
-                <Plus size={20} />
-                {t('addClient')}
-              </button>
-            </header>
-
-            <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-neutral-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h2 className="text-lg font-bold text-neutral-900">{t('clientList')}</h2>
-                <div className="relative w-full md:w-80">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
-                  <input
-                    type="text"
-                    placeholder={t('searchClients')}
-                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                    value={clientSearch}
-                    onChange={e => setClientSearch(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider">
-                      <th className="px-6 py-4 font-semibold">{t('clientDetails')}</th>
-                      <th className="px-6 py-4 font-semibold">{t('contactInfo')}</th>
-                      <th className="px-6 py-4 font-semibold text-right">{t('actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-100">
-                    {clients.filter(c =>
-                      c.username.toLowerCase().includes(clientSearch.toLowerCase()) ||
-                      (c.full_name && c.full_name.toLowerCase().includes(clientSearch.toLowerCase())) ||
-                      (c.email && c.email.toLowerCase().includes(clientSearch.toLowerCase()))
-                    ).map((client) => (
-                      <tr key={client.id} className="hover:bg-neutral-50 transition-colors group">
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-neutral-900">{client.full_name || t('noName')}</span>
-                            <span className="text-xs text-neutral-500">@{client.username}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col text-sm">
-                            <span className="text-neutral-700">{client.email || '-'}</span>
-                            <span className="text-neutral-500">{client.phone || '-'}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => {
-                                setEditingClient(client);
-                                setClientFormData({
-                                  username: client.username,
-                                  password: '',
-                                  full_name: client.full_name || '',
-                                  email: client.email || '',
-                                  phone: client.phone || '',
-                                  role: client.role
-                                });
-                                setIsClientModalOpen(true);
-                              }}
-                              className="p-2 text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setDeleteClientError('');
-                                setClientToDelete(client);
-                              }}
-                              className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {clients.length === 0 && (
-                      <tr>
-                        <td colSpan={3} className="px-6 py-12 text-center text-neutral-500">
-                          {t('noClients')}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-      </main>
+      </main >
 
       {/* Product Modal */}
       <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
-              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
-            >
-              <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
-                <h2 className="text-xl font-bold text-neutral-900">
-                  {editingProduct ? t('editProduct') : t('addNewProduct')}
-                </h2>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('productName')}</label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                      value={formData.name}
-                      onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('sku')}</label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                      value={formData.sku}
-                      onChange={e => setFormData({ ...formData, sku: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('category')}</label>
-                    <select
-                      required
-                      className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                      value={formData.category}
-                      onChange={e => setFormData({ ...formData, category: e.target.value })}
-                    >
-                      <option value="" disabled>{t('selectCategory')}</option>
-                      {PRODUCT_CATEGORIES.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="col-span-2 flex items-center gap-2 mb-2">
-                    <input
-                      type="checkbox"
-                      id="has_variations"
-                      checked={formData.has_variations}
-                      onChange={e => setFormData({ ...formData, has_variations: e.target.checked })}
-                      className="w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
-                    />
-                    <label htmlFor="has_variations" className="text-sm font-medium text-neutral-700">{t('hasVariations')}</label>
-                  </div>
-
-                  {!formData.has_variations ? (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-1">{t('priceRM')}</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          required
-                          className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                          value={formData.price}
-                          onChange={e => setFormData({ ...formData, price: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-1">{t('quantity')}</label>
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            required
-                            className="flex-1 px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                            value={formData.quantity}
-                            onChange={e => setFormData({ ...formData, quantity: e.target.value })}
-                          />
-                          <select
-                            className="w-24 px-2 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm"
-                            value={formData.unit_of_measure}
-                            onChange={e => setFormData({ ...formData, unit_of_measure: e.target.value })}
-                          >
-                            {UNIT_OPTIONS.map(unit => (
-                              <option key={unit} value={unit}>{unit}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium text-neutral-700 mb-1">{t('minStockAlert')}</label>
-                        <input
-                          type="number"
-                          required
-                          className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                          value={formData.min_stock}
-                          onChange={e => setFormData({ ...formData, min_stock: e.target.value })}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="col-span-2 space-y-4">
-                      {(Array.isArray(formData.variations) ? formData.variations : []).map((variation, index) => (
-                        <div key={index} className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 space-y-3 relative">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newVariations = [...formData.variations];
-                              newVariations.splice(index, 1);
-                              setFormData({ ...formData, variations: newVariations });
-                            }}
-                            className="absolute top-2 right-2 text-neutral-400 hover:text-red-500"
-                          >
-                            <X size={16} />
-                          </button>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs font-medium text-neutral-500 mb-1">{t('variationName')}</label>
-                              <input
-                                type="text"
-                                placeholder="e.g. Small, Red"
-                                className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm"
-                                value={variation.name}
-                                onChange={e => {
-                                  const newVariations = [...formData.variations];
-                                  newVariations[index].name = e.target.value;
-                                  setFormData({ ...formData, variations: newVariations });
-                                }}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-neutral-500 mb-1">{t('variationSKU')}</label>
-                              <input
-                                type="text"
-                                className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm"
-                                value={variation.sku}
-                                onChange={e => {
-                                  const newVariations = [...formData.variations];
-                                  newVariations[index].sku = e.target.value;
-                                  setFormData({ ...formData, variations: newVariations });
-                                }}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-neutral-500 mb-1">{t('variationPrice')}</label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm"
-                                value={variation.price}
-                                onChange={e => {
-                                  const newVariations = [...formData.variations];
-                                  newVariations[index].price = e.target.value;
-                                  setFormData({ ...formData, variations: newVariations });
-                                }}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-neutral-500 mb-1">{t('variationQty')}</label>
-                              <input
-                                type="number"
-                                className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm"
-                                value={variation.quantity}
-                                onChange={e => {
-                                  const newVariations = [...formData.variations];
-                                  newVariations[index].quantity = e.target.value;
-                                  setFormData({ ...formData, variations: newVariations });
-                                }}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-neutral-500 mb-1">{t('variationMinStock')}</label>
-                              <input
-                                type="number"
-                                className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm"
-                                value={variation.min_stock}
-                                onChange={e => {
-                                  const newVariations = [...formData.variations];
-                                  newVariations[index].min_stock = e.target.value;
-                                  setFormData({ ...formData, variations: newVariations });
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => setFormData({
-                          ...formData,
-                          variations: [...formData.variations, { name: '', sku: '', price: '', quantity: '', min_stock: '5' }]
-                        })}
-                        className="w-full py-2 border-2 border-dashed border-neutral-200 rounded-xl text-neutral-500 hover:border-emerald-500 hover:text-emerald-600 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Plus size={16} />
-                        {t('addVariation')}
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('imageUrl')}</label>
-                    <input
-                      type="url"
-                      className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                      value={formData.image_url}
-                      onChange={e => setFormData({ ...formData, image_url: e.target.value })}
-                      placeholder="https://example.com/image.jpg"
-                    />
-                    {formData.image_url && (
-                      <div className="mt-2">
-                        <img
-                          src={formData.image_url}
-                          alt="Preview"
-                          className="w-20 h-20 object-cover rounded-lg border border-neutral-200"
-                          onError={(e) => (e.currentTarget.style.display = 'none')}
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('reasonForChange')}</label>
-                    <input
-                      type="text"
-                      placeholder={editingProduct ? "e.g., Restock, Damaged goods..." : "e.g., Initial stock"}
-                      className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                      value={formData.reason}
-                      onChange={e => setFormData({ ...formData, reason: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 flex gap-3">
+        {
+          isModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsModalOpen(false)}
+                className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
+                  <h2 className="text-xl font-bold text-neutral-900">
+                    {editingProduct ? t('editProduct') : t('addNewProduct')}
+                  </h2>
                   <button
-                    type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 px-6 py-3 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
+                    className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
                   >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
-                  >
-                    {loading ? t('saving') : (editingProduct ? t('updateProduct') : t('addProduct'))}
+                    <X size={20} />
                   </button>
                 </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
-      {/* Adjust Stock Modal */}
-      <AnimatePresence>
-        {isAdjustModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsAdjustModalOpen(false)}
-              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
-            >
-              <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
-                <div>
-                  <h2 className="text-xl font-bold text-neutral-900">{t('adjustStock')}</h2>
-                  <p className="text-sm text-neutral-500">{adjustProduct?.name}</p>
-                </div>
-                <button
-                  onClick={() => setIsAdjustModalOpen(false)}
-                  className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handleAdjust} className="p-6 space-y-4">
-                {adjustProduct?.has_variations && (
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Variation</label>
-                    <select
-                      required
-                      className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                      value={adjustData.variation_id}
-                      onChange={e => setAdjustData({ ...adjustData, variation_id: e.target.value })}
-                    >
-                      <option value="">{t('selectVariation')}</option>
-                      {adjustProduct.variations?.map(v => (
-                        <option key={v.id} value={v.id}>
-                          {v.name} (Qty: {v.quantity})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">{t('adjustmentAmount')}</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      required
-                      placeholder="e.g., 10 or -5"
-                      className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                      value={adjustData.amount}
-                      onChange={e => setAdjustData({ ...adjustData, amount: e.target.value })}
-                    />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400">
-                      {t('current')}: {
-                        adjustProduct?.has_variations && adjustData.variation_id
-                          ? adjustProduct.variations?.find(v => v.id === adjustData.variation_id)?.quantity
-                          : adjustProduct?.quantity
-                      }
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">{t('productName')}</label>
+                      <input
+                        type="text"
+                        required
+                        className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        value={formData.name}
+                        onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      />
                     </div>
-                  </div>
-                  <p className="text-xs text-neutral-400 mt-1">{t('adjustHint')}</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">{t('reason')}</label>
-                  <select
-                    className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                    value={adjustData.reason}
-                    onChange={e => setAdjustData({ ...adjustData, reason: e.target.value })}
-                  >
-                    <option value="Restock">{t('reasonRestock')}</option>
-                    <option value="Sale">{t('reasonSale')}</option>
-                    <option value="Damage">{t('reasonDamage')}</option>
-                    <option value="Return">{t('reasonReturn')}</option>
-                    <option value="Correction">{t('reasonCorrection')}</option>
-                  </select>
-                </div>
-
-                <div className="pt-4 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsAdjustModalOpen(false)}
-                    className="flex-1 px-6 py-3 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
-                  >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading || !adjustData.amount}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
-                  >
-                    {loading ? t('adjusting') : t('confirmAdjustment')}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Bulk Update Modal */}
-      <AnimatePresence>
-        {isBulkModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsBulkModalOpen(false)}
-              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
-            >
-              <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
-                <div>
-                  <h2 className="text-xl font-bold text-neutral-900">{t('bulkUpdateTitle')}</h2>
-                  <p className="text-sm text-neutral-500">{t('updatingProducts')} {selectedIds.length} {t('selectedProducts')}</p>
-                </div>
-                <button
-                  onClick={() => setIsBulkModalOpen(false)}
-                  className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handleBulkUpdate} className="p-6 space-y-6">
-                <div className="space-y-4">
-                  {/* Category Update */}
-                  <div className="flex items-start gap-3 p-3 rounded-xl border border-neutral-100 hover:bg-neutral-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      className="mt-1 w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
-                      checked={bulkFormData.updateCategory}
-                      onChange={e => setBulkFormData({ ...bulkFormData, updateCategory: e.target.checked })}
-                    />
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-neutral-700 mb-1">{t('updateCategory')}</label>
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">{t('sku')}</label>
+                      <input
+                        type="text"
+                        required
+                        className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        value={formData.sku}
+                        onChange={e => setFormData({ ...formData, sku: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">{t('category')}</label>
                       <select
-                        disabled={!bulkFormData.updateCategory}
-                        className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white disabled:bg-neutral-50 disabled:text-neutral-400"
-                        value={bulkFormData.category}
-                        onChange={e => setBulkFormData({ ...bulkFormData, category: e.target.value })}
+                        required
+                        className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                        value={formData.category}
+                        onChange={e => setFormData({ ...formData, category: e.target.value })}
                       >
                         <option value="" disabled>{t('selectCategory')}</option>
                         {PRODUCT_CATEGORIES.map(cat => (
@@ -2371,575 +2183,968 @@ export default function App() {
                         ))}
                       </select>
                     </div>
-                  </div>
 
-                  {/* Min Stock Update */}
-                  <div className="flex items-start gap-3 p-3 rounded-xl border border-neutral-100 hover:bg-neutral-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      className="mt-1 w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
-                      checked={bulkFormData.updateMinStock}
-                      onChange={e => setBulkFormData({ ...bulkFormData, updateMinStock: e.target.checked })}
-                    />
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-neutral-700 mb-1">{t('updateMinStock')}</label>
+                    <div className="col-span-2 flex items-center gap-2 mb-2">
                       <input
-                        type="number"
-                        disabled={!bulkFormData.updateMinStock}
-                        className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-neutral-50 disabled:text-neutral-400"
-                        value={bulkFormData.min_stock}
-                        onChange={e => setBulkFormData({ ...bulkFormData, min_stock: e.target.value })}
+                        type="checkbox"
+                        id="has_variations"
+                        checked={formData.has_variations}
+                        onChange={e => setFormData({ ...formData, has_variations: e.target.checked })}
+                        className="w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
                       />
+                      <label htmlFor="has_variations" className="text-sm font-medium text-neutral-700">{t('hasVariations')}</label>
                     </div>
-                  </div>
 
-                  {/* Unit Update */}
-                  <div className="flex items-start gap-3 p-3 rounded-xl border border-neutral-100 hover:bg-neutral-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      className="mt-1 w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
-                      checked={bulkFormData.updateUnit}
-                      onChange={e => setBulkFormData({ ...bulkFormData, updateUnit: e.target.checked })}
-                    />
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-neutral-700 mb-1">{t('updateUnit')}</label>
-                      <select
-                        disabled={!bulkFormData.updateUnit}
-                        className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white disabled:bg-neutral-50 disabled:text-neutral-400"
-                        value={bulkFormData.unit_of_measure}
-                        onChange={e => setBulkFormData({ ...bulkFormData, unit_of_measure: e.target.value })}
-                      >
-                        <option value="" disabled>{t('selectUnit')}</option>
-                        {UNIT_OPTIONS.map(unit => (
-                          <option key={unit} value={unit}>{unit}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-4 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsBulkModalOpen(false)}
-                    className="flex-1 px-6 py-3 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
-                  >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading || (!bulkFormData.updateCategory && !bulkFormData.updateMinStock && !bulkFormData.updateUnit)}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
-                  >
-                    {loading ? t('updating') : t('applyChanges')}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Place Order Modal */}
-      <AnimatePresence>
-        {isOrderModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsOrderModalOpen(false)}
-              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden"
-            >
-              <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
-                <h2 className="text-xl font-bold text-neutral-900">{t('placeNewOrder')}</h2>
-                <button
-                  onClick={() => setIsOrderModalOpen(false)}
-                  className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handlePlaceOrder} className="p-6 space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('customerName')}</label>
-                    <div className="relative">
-                      <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
-                      <input
-                        type="text"
-                        required
-                        className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                        value={orderFormData.customer_name}
-                        onChange={e => setOrderFormData({ ...orderFormData, customer_name: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('expectedDelivery')}</label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
-                      <input
-                        type="date"
-                        className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                        value={orderFormData.delivery_date}
-                        onChange={e => setOrderFormData({ ...orderFormData, delivery_date: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-neutral-900">{t('orderItems')}</h3>
-                    <button
-                      type="button"
-                      onClick={() => setOrderFormData({
-                        ...orderFormData,
-                        items: [...orderFormData.items, { product_id: '', quantity: 1 }]
-                      })}
-                      className="text-emerald-600 hover:text-emerald-700 text-sm font-semibold flex items-center gap-1"
-                    >
-                      <Plus size={16} />
-                      {t('addItem')}
-                    </button>
-                  </div>
-
-                  <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
-                    {orderFormData.items.map((item, index) => {
-                      const selectedProduct = products.find(p => p.id === item.product_id);
-                      const hasVariations = selectedProduct?.has_variations;
-
-                      return (
-                        <div key={index} className="flex gap-3 items-end bg-neutral-50 p-3 rounded-xl border border-neutral-100 flex-wrap">
-                          {selectedProduct?.image_url && (
-                            <div className="w-10 h-10 flex-shrink-0 mb-1">
-                              <img
-                                src={selectedProduct.image_url}
-                                alt="Product"
-                                className="w-10 h-10 object-cover rounded-lg border border-neutral-200"
-                              />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-[200px]">
-                            <label className="block text-xs font-medium text-neutral-500 mb-1">{t('product')}</label>
-                            <select
+                    {!formData.has_variations ? (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-700 mb-1">{t('priceRM')}</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            required
+                            className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                            value={formData.price}
+                            onChange={e => setFormData({ ...formData, price: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-700 mb-1">{t('quantity')}</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
                               required
-                              className="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm"
-                              value={item.product_id}
-                              onChange={e => {
-                                const newItems = [...orderFormData.items];
-                                newItems[index].product_id = e.target.value;
-                                newItems[index].variation_id = undefined;
-                                setOrderFormData({ ...orderFormData, items: newItems });
-                              }}
+                              className="flex-1 px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                              value={formData.quantity}
+                              onChange={e => setFormData({ ...formData, quantity: e.target.value })}
+                            />
+                            <select
+                              className="w-24 px-2 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm"
+                              value={formData.unit_of_measure}
+                              onChange={e => setFormData({ ...formData, unit_of_measure: e.target.value })}
                             >
-                              <option value="0">{t('selectProduct')}</option>
-                              {products.map(p => (
-                                <option key={p.id} value={p.id} disabled={!p.has_variations && p.quantity <= 0}>
-                                  {p.name} {p.has_variations ? '(Select Variation)' : `(${p.quantity} ${p.unit_of_measure}) - RM ${p.price.toFixed(2)}`}
-                                </option>
+                              {UNIT_OPTIONS.map(unit => (
+                                <option key={unit} value={unit}>{unit}</option>
                               ))}
                             </select>
                           </div>
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-neutral-700 mb-1">{t('minStockAlert')}</label>
+                          <input
+                            type="number"
+                            required
+                            className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                            value={formData.min_stock}
+                            onChange={e => setFormData({ ...formData, min_stock: e.target.value })}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="col-span-2 space-y-4">
+                        {(Array.isArray(formData.variations) ? formData.variations : []).map((variation, index) => (
+                          <div key={index} className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 space-y-3 relative">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newVariations = [...formData.variations];
+                                newVariations.splice(index, 1);
+                                setFormData({ ...formData, variations: newVariations });
+                              }}
+                              className="absolute top-2 right-2 text-neutral-400 hover:text-red-500"
+                            >
+                              <X size={16} />
+                            </button>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-medium text-neutral-500 mb-1">{t('variationName')}</label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Small, Red"
+                                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm"
+                                  value={variation.name}
+                                  onChange={e => {
+                                    const newVariations = [...formData.variations];
+                                    newVariations[index].name = e.target.value;
+                                    setFormData({ ...formData, variations: newVariations });
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-neutral-500 mb-1">{t('variationSKU')}</label>
+                                <input
+                                  type="text"
+                                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm"
+                                  value={variation.sku}
+                                  onChange={e => {
+                                    const newVariations = [...formData.variations];
+                                    newVariations[index].sku = e.target.value;
+                                    setFormData({ ...formData, variations: newVariations });
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-neutral-500 mb-1">{t('variationPrice')}</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm"
+                                  value={variation.price}
+                                  onChange={e => {
+                                    const newVariations = [...formData.variations];
+                                    newVariations[index].price = e.target.value;
+                                    setFormData({ ...formData, variations: newVariations });
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-neutral-500 mb-1">{t('variationQty')}</label>
+                                <input
+                                  type="number"
+                                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm"
+                                  value={variation.quantity}
+                                  onChange={e => {
+                                    const newVariations = [...formData.variations];
+                                    newVariations[index].quantity = e.target.value;
+                                    setFormData({ ...formData, variations: newVariations });
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-neutral-500 mb-1">{t('variationMinStock')}</label>
+                                <input
+                                  type="number"
+                                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm"
+                                  value={variation.min_stock}
+                                  onChange={e => {
+                                    const newVariations = [...formData.variations];
+                                    newVariations[index].min_stock = e.target.value;
+                                    setFormData({ ...formData, variations: newVariations });
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setFormData({
+                            ...formData,
+                            variations: [...formData.variations, { name: '', sku: '', price: '', quantity: '', min_stock: '5' }]
+                          })}
+                          className="w-full py-2 border-2 border-dashed border-neutral-200 rounded-xl text-neutral-500 hover:border-emerald-500 hover:text-emerald-600 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Plus size={16} />
+                          {t('addVariation')}
+                        </button>
+                      </div>
+                    )}
 
-                          {hasVariations && (
-                            <div className="flex-1 min-w-[150px]">
-                              <label className="block text-xs font-medium text-neutral-500 mb-1">Variation</label>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">{t('imageUrl')}</label>
+                      <input
+                        type="url"
+                        className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        value={formData.image_url}
+                        onChange={e => setFormData({ ...formData, image_url: e.target.value })}
+                        placeholder="https://example.com/image.jpg"
+                      />
+                      {formData.image_url && (
+                        <div className="mt-2">
+                          <img
+                            src={formData.image_url}
+                            alt="Preview"
+                            className="w-20 h-20 object-cover rounded-lg border border-neutral-200"
+                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">{t('reasonForChange')}</label>
+                      <input
+                        type="text"
+                        placeholder={editingProduct ? "e.g., Restock, Damaged goods..." : "e.g., Initial stock"}
+                        className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        value={formData.reason}
+                        onChange={e => setFormData({ ...formData, reason: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      className="flex-1 px-6 py-3 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
+                    >
+                      {t('cancel')}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
+                    >
+                      {loading ? t('saving') : (editingProduct ? t('updateProduct') : t('addProduct'))}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )
+        }
+      </AnimatePresence >
+
+      {/* Adjust Stock Modal */}
+      <AnimatePresence>
+        {
+          isAdjustModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsAdjustModalOpen(false)}
+                className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">{t('adjustStock')}</h2>
+                    <p className="text-sm text-neutral-500">{adjustProduct?.name}</p>
+                  </div>
+                  <button
+                    onClick={() => setIsAdjustModalOpen(false)}
+                    className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleAdjust} className="p-6 space-y-4">
+                  {adjustProduct?.has_variations && (
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">Variation</label>
+                      <select
+                        required
+                        className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                        value={adjustData.variation_id}
+                        onChange={e => setAdjustData({ ...adjustData, variation_id: e.target.value })}
+                      >
+                        <option value="">{t('selectVariation')}</option>
+                        {adjustProduct.variations?.map(v => (
+                          <option key={v.id} value={v.id}>
+                            {v.name} (Qty: {v.quantity})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('adjustmentAmount')}</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        required
+                        placeholder="e.g., 10 or -5"
+                        className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                        value={adjustData.amount}
+                        onChange={e => setAdjustData({ ...adjustData, amount: e.target.value })}
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400">
+                        {t('current')}: {
+                          adjustProduct?.has_variations && adjustData.variation_id
+                            ? adjustProduct.variations?.find(v => v.id === adjustData.variation_id)?.quantity
+                            : adjustProduct?.quantity
+                        }
+                      </div>
+                    </div>
+                    <p className="text-xs text-neutral-400 mt-1">{t('adjustHint')}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('reason')}</label>
+                    <select
+                      className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                      value={adjustData.reason}
+                      onChange={e => setAdjustData({ ...adjustData, reason: e.target.value })}
+                    >
+                      <option value="Restock">{t('reasonRestock')}</option>
+                      <option value="Sale">{t('reasonSale')}</option>
+                      <option value="Damage">{t('reasonDamage')}</option>
+                      <option value="Return">{t('reasonReturn')}</option>
+                      <option value="Correction">{t('reasonCorrection')}</option>
+                    </select>
+                  </div>
+
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsAdjustModalOpen(false)}
+                      className="flex-1 px-6 py-3 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
+                    >
+                      {t('cancel')}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading || !adjustData.amount}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
+                    >
+                      {loading ? t('adjusting') : t('confirmAdjustment')}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )
+        }
+      </AnimatePresence >
+
+      {/* Bulk Update Modal */}
+      <AnimatePresence>
+        {
+          isBulkModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsBulkModalOpen(false)}
+                className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">{t('bulkUpdateTitle')}</h2>
+                    <p className="text-sm text-neutral-500">{t('updatingProducts')} {selectedIds.length} {t('selectedProducts')}</p>
+                  </div>
+                  <button
+                    onClick={() => setIsBulkModalOpen(false)}
+                    className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleBulkUpdate} className="p-6 space-y-6">
+                  <div className="space-y-4">
+                    {/* Category Update */}
+                    <div className="flex items-start gap-3 p-3 rounded-xl border border-neutral-100 hover:bg-neutral-50 transition-colors">
+                      <input
+                        type="checkbox"
+                        className="mt-1 w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
+                        checked={bulkFormData.updateCategory}
+                        onChange={e => setBulkFormData({ ...bulkFormData, updateCategory: e.target.checked })}
+                      />
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">{t('updateCategory')}</label>
+                        <select
+                          disabled={!bulkFormData.updateCategory}
+                          className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white disabled:bg-neutral-50 disabled:text-neutral-400"
+                          value={bulkFormData.category}
+                          onChange={e => setBulkFormData({ ...bulkFormData, category: e.target.value })}
+                        >
+                          <option value="" disabled>{t('selectCategory')}</option>
+                          {PRODUCT_CATEGORIES.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Min Stock Update */}
+                    <div className="flex items-start gap-3 p-3 rounded-xl border border-neutral-100 hover:bg-neutral-50 transition-colors">
+                      <input
+                        type="checkbox"
+                        className="mt-1 w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
+                        checked={bulkFormData.updateMinStock}
+                        onChange={e => setBulkFormData({ ...bulkFormData, updateMinStock: e.target.checked })}
+                      />
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">{t('updateMinStock')}</label>
+                        <input
+                          type="number"
+                          disabled={!bulkFormData.updateMinStock}
+                          className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-neutral-50 disabled:text-neutral-400"
+                          value={bulkFormData.min_stock}
+                          onChange={e => setBulkFormData({ ...bulkFormData, min_stock: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Unit Update */}
+                    <div className="flex items-start gap-3 p-3 rounded-xl border border-neutral-100 hover:bg-neutral-50 transition-colors">
+                      <input
+                        type="checkbox"
+                        className="mt-1 w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
+                        checked={bulkFormData.updateUnit}
+                        onChange={e => setBulkFormData({ ...bulkFormData, updateUnit: e.target.checked })}
+                      />
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">{t('updateUnit')}</label>
+                        <select
+                          disabled={!bulkFormData.updateUnit}
+                          className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white disabled:bg-neutral-50 disabled:text-neutral-400"
+                          value={bulkFormData.unit_of_measure}
+                          onChange={e => setBulkFormData({ ...bulkFormData, unit_of_measure: e.target.value })}
+                        >
+                          <option value="" disabled>{t('selectUnit')}</option>
+                          {UNIT_OPTIONS.map(unit => (
+                            <option key={unit} value={unit}>{unit}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsBulkModalOpen(false)}
+                      className="flex-1 px-6 py-3 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
+                    >
+                      {t('cancel')}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading || (!bulkFormData.updateCategory && !bulkFormData.updateMinStock && !bulkFormData.updateUnit)}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
+                    >
+                      {loading ? t('updating') : t('applyChanges')}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )
+        }
+      </AnimatePresence >
+
+      {/* Place Order Modal */}
+      <AnimatePresence>
+        {
+          isOrderModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsOrderModalOpen(false)}
+                className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
+                  <h2 className="text-xl font-bold text-neutral-900">{t('placeNewOrder')}</h2>
+                  <button
+                    onClick={() => setIsOrderModalOpen(false)}
+                    className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <form onSubmit={handlePlaceOrder} className="p-6 space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">{t('customerName')}</label>
+                      <div className="relative">
+                        <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+                        <input
+                          type="text"
+                          required
+                          className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                          value={orderFormData.customer_name}
+                          onChange={e => setOrderFormData({ ...orderFormData, customer_name: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">{t('expectedDelivery')}</label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+                        <input
+                          type="date"
+                          className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                          value={orderFormData.delivery_date}
+                          onChange={e => setOrderFormData({ ...orderFormData, delivery_date: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-neutral-900">{t('orderItems')}</h3>
+                      <button
+                        type="button"
+                        onClick={() => setOrderFormData({
+                          ...orderFormData,
+                          items: [...orderFormData.items, { product_id: '', quantity: 1 }]
+                        })}
+                        className="text-emerald-600 hover:text-emerald-700 text-sm font-semibold flex items-center gap-1"
+                      >
+                        <Plus size={16} />
+                        {t('addItem')}
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                      {orderFormData.items.map((item, index) => {
+                        const selectedProduct = products.find(p => p.id === item.product_id);
+                        const hasVariations = selectedProduct?.has_variations;
+
+                        return (
+                          <div key={index} className="flex gap-3 items-end bg-neutral-50 p-3 rounded-xl border border-neutral-100 flex-wrap">
+                            {selectedProduct?.image_url && (
+                              <div className="w-10 h-10 flex-shrink-0 mb-1">
+                                <img
+                                  src={selectedProduct.image_url}
+                                  alt="Product"
+                                  className="w-10 h-10 object-cover rounded-lg border border-neutral-200"
+                                />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-[200px]">
+                              <label className="block text-xs font-medium text-neutral-500 mb-1">{t('product')}</label>
                               <select
                                 required
                                 className="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm"
-                                value={item.variation_id || ''}
+                                value={item.product_id}
                                 onChange={e => {
                                   const newItems = [...orderFormData.items];
-                                  newItems[index].variation_id = e.target.value;
+                                  newItems[index].product_id = e.target.value;
+                                  newItems[index].variation_id = undefined;
                                   setOrderFormData({ ...orderFormData, items: newItems });
                                 }}
                               >
-                                <option value="">{t('selectVariation')}</option>
-                                {(selectedProduct && Array.isArray(selectedProduct.variations) ? selectedProduct.variations : []).map(v => (
-                                  <option key={v.id} value={v.id} disabled={v.quantity <= 0}>
-                                    {v.name} ({v.quantity} available) - RM {v.price.toFixed(2)}
+                                <option value="0">{t('selectProduct')}</option>
+                                {products.map(p => (
+                                  <option key={p.id} value={p.id} disabled={!p.has_variations && p.quantity <= 0}>
+                                    {p.name} {p.has_variations ? '(Select Variation)' : `(${p.quantity} ${p.unit_of_measure}) - RM ${p.price.toFixed(2)}`}
                                   </option>
                                 ))}
                               </select>
                             </div>
-                          )}
 
-                          <div className="w-24">
-                            <label className="block text-xs font-medium text-neutral-500 mb-1">{t('qty')}</label>
-                            <input
-                              type="number"
-                              min="1"
-                              required
-                              className="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
-                              value={item.quantity}
-                              onChange={e => {
-                                const newItems = [...orderFormData.items];
-                                newItems[index].quantity = parseInt(e.target.value);
+                            {hasVariations && (
+                              <div className="flex-1 min-w-[150px]">
+                                <label className="block text-xs font-medium text-neutral-500 mb-1">Variation</label>
+                                <select
+                                  required
+                                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm"
+                                  value={item.variation_id || ''}
+                                  onChange={e => {
+                                    const newItems = [...orderFormData.items];
+                                    newItems[index].variation_id = e.target.value;
+                                    setOrderFormData({ ...orderFormData, items: newItems });
+                                  }}
+                                >
+                                  <option value="">{t('selectVariation')}</option>
+                                  {(selectedProduct && Array.isArray(selectedProduct.variations) ? selectedProduct.variations : []).map(v => (
+                                    <option key={v.id} value={v.id} disabled={v.quantity <= 0}>
+                                      {v.name} ({v.quantity} available) - RM {v.price.toFixed(2)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            <div className="w-24">
+                              <label className="block text-xs font-medium text-neutral-500 mb-1">{t('qty')}</label>
+                              <input
+                                type="number"
+                                min="1"
+                                required
+                                className="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                                value={item.quantity}
+                                onChange={e => {
+                                  const newItems = [...orderFormData.items];
+                                  newItems[index].quantity = parseInt(e.target.value);
+                                  setOrderFormData({ ...orderFormData, items: newItems });
+                                }}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newItems = orderFormData.items.filter((_, i) => i !== index);
                                 setOrderFormData({ ...orderFormData, items: newItems });
                               }}
-                            />
+                              className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors mb-0.5"
+                            >
+                              <Trash2 size={18} />
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newItems = orderFormData.items.filter((_, i) => i !== index);
-                              setOrderFormData({ ...orderFormData, items: newItems });
-                            }}
-                            className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors mb-0.5"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                    {orderFormData.items.length === 0 && (
-                      <p className="text-center text-neutral-400 text-sm py-4">{t('noItemsAdded')}</p>
-                    )}
+                        );
+                      })}
+                      {orderFormData.items.length === 0 && (
+                        <p className="text-center text-neutral-400 text-sm py-4">{t('noItemsAdded')}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                  <span className="font-bold text-emerald-800">{t('estimatedTotal')}</span>
-                  <span className="text-xl font-bold text-emerald-600">
-                    RM {(() => {
-                      const total = (Array.isArray(orderFormData.items) ? orderFormData.items : []).reduce((acc, item) => {
-                        const product = products.find(p => p.id === item.product_id);
-                        let price = 0;
-                        if (product) {
-                          if (product.has_variations && item.variation_id) {
-                            const variation = (Array.isArray(product.variations) ? product.variations : []).find(v => v.id === item.variation_id);
-                            price = variation ? variation.price : 0;
-                          } else {
-                            price = product.price || 0;
+                  <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                    <span className="font-bold text-emerald-800">{t('estimatedTotal')}</span>
+                    <span className="text-xl font-bold text-emerald-600">
+                      RM {(() => {
+                        const total = (Array.isArray(orderFormData.items) ? orderFormData.items : []).reduce((acc, item) => {
+                          const product = products.find(p => p.id === item.product_id);
+                          let price = 0;
+                          if (product) {
+                            if (product.has_variations && item.variation_id) {
+                              const variation = (Array.isArray(product.variations) ? product.variations : []).find(v => v.id === item.variation_id);
+                              price = variation ? variation.price : 0;
+                            } else {
+                              price = product.price || 0;
+                            }
                           }
-                        }
-                        return acc + (price * item.quantity);
-                      }, 0);
-                      return total.toLocaleString('en-MY', { minimumFractionDigits: 2 });
-                    })()}
-                  </span>
-                </div>
+                          return acc + (price * item.quantity);
+                        }, 0);
+                        return total.toLocaleString('en-MY', { minimumFractionDigits: 2 });
+                      })()}
+                    </span>
+                  </div>
 
-                <div className="pt-4 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsOrderModalOpen(false)}
-                    className="flex-1 px-6 py-3 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
-                  >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading || orderFormData.items.length === 0}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
-                  >
-                    {loading ? t('processing') : t('placeOrder')}
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsOrderModalOpen(false)}
+                      className="flex-1 px-6 py-3 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
+                    >
+                      {t('cancel')}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading || orderFormData.items.length === 0}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
+                    >
+                      {loading ? t('processing') : t('placeOrder')}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )
+        }
+      </AnimatePresence >
 
       {/* Profile Edit Modal */}
       <AnimatePresence>
-        {isProfileModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsProfileModalOpen(false)}
-              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
-            >
-              <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
-                <h2 className="text-xl font-bold text-neutral-900">{t('editProfile')}</h2>
-                <button
-                  onClick={() => setIsProfileModalOpen(false)}
-                  className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <form onSubmit={handleUpdateProfile} className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">{t('fullName')}</label>
-                  <input
-                    type="text"
-                    required
-                    className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                    value={profileFormData.full_name}
-                    onChange={e => setProfileFormData({ ...profileFormData, full_name: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">{t('email')}</label>
-                  <input
-                    type="email"
-                    required
-                    className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                    value={profileFormData.email}
-                    onChange={e => setProfileFormData({ ...profileFormData, email: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">{t('phone')}</label>
-                  <input
-                    type="tel"
-                    className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                    value={profileFormData.phone}
-                    onChange={e => setProfileFormData({ ...profileFormData, phone: e.target.value })}
-                  />
-                </div>
-                <div className="pt-4 flex gap-3">
+        {
+          isProfileModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsProfileModalOpen(false)}
+                className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
+                  <h2 className="text-xl font-bold text-neutral-900">{t('editProfile')}</h2>
                   <button
-                    type="button"
                     onClick={() => setIsProfileModalOpen(false)}
-                    className="flex-1 px-4 py-2 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
+                    className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
                   >
-                    {t('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
-                  >
-                    {loading ? t('saving') : t('saveChanges')}
+                    <X size={20} />
                   </button>
                 </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                <form onSubmit={handleUpdateProfile} className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('fullName')}</label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      value={profileFormData.full_name}
+                      onChange={e => setProfileFormData({ ...profileFormData, full_name: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('email')}</label>
+                    <input
+                      type="email"
+                      required
+                      className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      value={profileFormData.email}
+                      onChange={e => setProfileFormData({ ...profileFormData, email: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">{t('phone')}</label>
+                    <input
+                      type="tel"
+                      className="w-full px-4 py-2 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      value={profileFormData.phone}
+                      onChange={e => setProfileFormData({ ...profileFormData, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsProfileModalOpen(false)}
+                      className="flex-1 px-4 py-2 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
+                    >
+                      {t('cancel')}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
+                    >
+                      {loading ? t('saving') : t('saveChanges')}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )
+        }
+      </AnimatePresence >
 
       {/* Order Details Modal */}
       <AnimatePresence>
-        {isOrderDetailsOpen && selectedOrder && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsOrderDetailsOpen(false)}
-              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden"
-            >
-              <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
-                <div>
-                  <h2 className="text-xl font-bold text-neutral-900">{t('orderDetails')}</h2>
-                  <p className="text-sm text-neutral-500">{t('orderId')} #{selectedOrder.id.toString().padStart(5, '0')}</p>
-                </div>
-                <button
-                  onClick={() => setIsOrderDetailsOpen(false)}
-                  className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="p-6 space-y-6">
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('customer')}</label>
-                      <p className="text-neutral-900 font-semibold">{selectedOrder.customer_name}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('orderDate')}</label>
-                      <p className="text-neutral-900">{selectedOrder.order_date ? new Date(selectedOrder.order_date).toLocaleString() : '-'}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('deliveryDate')}</label>
-                      <p className="text-neutral-900">{selectedOrder.delivery_date ? new Date(selectedOrder.delivery_date).toLocaleDateString() : t('notSpecified')}</p>
-                    </div>
+        {
+          isOrderDetailsOpen && selectedOrder && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsOrderDetailsOpen(false)}
+                className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
+                  <div>
+                    <h2 className="text-xl font-bold text-neutral-900">{t('orderDetails')}</h2>
+                    <p className="text-sm text-neutral-500">{t('orderId')} #{selectedOrder.id.toString().padStart(5, '0')}</p>
                   </div>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('status')}</label>
-                      <select
-                        className={`w-full px-3 py-2 rounded-lg border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-sm ${selectedOrder.status === 'Delivered' ? 'text-emerald-600' :
-                          selectedOrder.status === 'Cancelled' ? 'text-red-600' :
-                            'text-amber-600'
-                          }`}
-                        value={selectedOrder.status}
-                        onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)}
-                      >
-                        <option value="Pending">Pending</option>
-                        <option value="Processing">Processing</option>
-                        <option value="Shipped">Shipped</option>
-                        <option value="Delivered">Delivered</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
-                      {selectedOrder.status === 'Cancelled' && selectedOrder.cancellation_reason && (
-                        <p className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded-lg border border-red-100">
-                          <span className="font-bold">{t('reason')}:</span> {selectedOrder.cancellation_reason}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('totalAmount')}</label>
-                      <p className="text-2xl font-bold text-emerald-600">RM {selectedOrder.total_amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</p>
-                    </div>
-                  </div>
+                  <button
+                    onClick={() => setIsOrderDetailsOpen(false)}
+                    className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
                 </div>
 
-                <div className="space-y-3">
-                  <h3 className="font-bold text-neutral-900 flex items-center gap-2">
-                    <ClipboardList size={18} className="text-neutral-400" />
-                    {t('itemsOrdered')}
-                  </h3>
-                  <div className="border border-neutral-100 rounded-xl overflow-hidden">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-neutral-50 text-neutral-500 uppercase text-[10px] font-bold">
-                        <tr>
-                          <th className="px-4 py-3">{t('product')}</th>
-                          <th className="px-4 py-3 text-center">{t('qty')}</th>
-                          <th className="px-4 py-3 text-right">{t('priceRM')}</th>
-                          <th className="px-4 py-3 text-right">{t('subtotal')}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-50">
-                        {(selectedOrder && Array.isArray(selectedOrder.items) ? selectedOrder.items : []).map((item) => (
-                          <tr key={item.id}>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-3">
-                                {item.product_image && (
-                                  <img
-                                    src={item.product_image}
-                                    alt={item.product_name}
-                                    className="w-10 h-10 object-cover rounded-lg border border-neutral-200"
-                                  />
-                                )}
-                                <div className="flex flex-col">
-                                  <span className="font-medium text-neutral-900">{item.product_name}</span>
-                                  <span className="text-[10px] text-neutral-400 font-mono">
-                                    {item.variation_sku || item.product_sku}
-                                  </span>
-                                  {item.variation_name && (
-                                    <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 w-fit mt-0.5">
-                                      {item.variation_name}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-center font-semibold">{item.quantity}</td>
-                            <td className="px-4 py-3 text-right">{item.price_at_order.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
-                            <td className="px-4 py-3 text-right font-bold">
-                              {(item.quantity * item.price_at_order).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
-                            </td>
+                <div className="p-6 space-y-6">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('customer')}</label>
+                        <p className="text-neutral-900 font-semibold">{selectedOrder.customer_name}</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('orderDate')}</label>
+                        <p className="text-sm font-bold text-neutral-900">{formatDate(selectedOrder.order_date)}</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('deliveryDate')}</label>
+                        <p className="text-sm font-bold text-neutral-900">{formatDate(selectedOrder.delivery_date)}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('status')}</label>
+                        <select
+                          className={`w-full px-3 py-2 rounded-lg border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-sm ${selectedOrder.status === 'Delivered' ? 'text-emerald-600' :
+                            selectedOrder.status === 'Cancelled' ? 'text-red-600' :
+                              'text-amber-600'
+                            }`}
+                          value={selectedOrder.status}
+                          onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Processing">Processing</option>
+                          <option value="Shipped">Shipped</option>
+                          <option value="Delivered">Delivered</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                        {selectedOrder.status === 'Cancelled' && selectedOrder.cancellation_reason && (
+                          <p className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded-lg border border-red-100">
+                            <span className="font-bold">{t('reason')}:</span> {selectedOrder.cancellation_reason}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{t('totalAmount')}</label>
+                        <p className="text-2xl font-bold text-emerald-600">RM {selectedOrder.total_amount.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-neutral-900 flex items-center gap-2">
+                      <ClipboardList size={18} className="text-neutral-400" />
+                      {t('itemsOrdered')}
+                    </h3>
+                    <div className="border border-neutral-100 rounded-xl overflow-hidden">
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-neutral-50 text-neutral-500 uppercase text-[10px] font-bold">
+                          <tr>
+                            <th className="px-4 py-3">{t('product')}</th>
+                            <th className="px-4 py-3 text-center">{t('qty')}</th>
+                            <th className="px-4 py-3 text-right">{t('priceRM')}</th>
+                            <th className="px-4 py-3 text-right">{t('subtotal')}</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-50">
+                          {(selectedOrder && Array.isArray(selectedOrder.items) ? selectedOrder.items : []).map((item) => (
+                            <tr key={item.id}>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  {item.product_image && (
+                                    <img
+                                      src={item.product_image}
+                                      alt={item.product_name}
+                                      className="w-10 h-10 object-cover rounded-lg border border-neutral-200"
+                                    />
+                                  )}
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-neutral-900">{item.product_name}</span>
+                                    <span className="text-[10px] text-neutral-400 font-mono">
+                                      {item.variation_sku || item.product_sku}
+                                    </span>
+                                    {item.variation_name && (
+                                      <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 w-fit mt-0.5">
+                                        {item.variation_name}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-center font-semibold">{item.quantity}</td>
+                              <td className="px-4 py-3 text-right">{item.price_at_order.toLocaleString('en-MY', { minimumFractionDigits: 2 })}</td>
+                              <td className="px-4 py-3 text-right font-bold">
+                                {(item.quantity * item.price_at_order).toLocaleString('en-MY', { minimumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex flex-col gap-3">
-                {user.role === 'client' && selectedOrder?.status === 'Pending' && (
-                  <div className="flex gap-2 w-full">
-                    <button
-                      onClick={() => handlePayWithFiuu(selectedOrder.id, 'tng')}
-                      className="flex-1 bg-[#0055A4] text-white font-bold py-3 rounded-xl hover:bg-[#004488] transition-colors shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
-                    >
-                      TNG eWallet
-                    </button>
-                    <button
-                      onClick={() => handlePayWithFiuu(selectedOrder.id, 'all')}
-                      className="flex-1 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
-                    >
-                      {t('others')}
-                    </button>
-                  </div>
-                )}
-                <button
-                  onClick={() => setIsOrderDetailsOpen(false)}
-                  className="w-full bg-white border border-neutral-200 text-neutral-600 font-semibold py-3 rounded-xl hover:bg-neutral-50 transition-colors"
-                >
-                  {t('close')}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                <div className="p-6 bg-neutral-50 border-t border-neutral-100 flex flex-col gap-3">
+                  {user.role === 'client' && selectedOrder?.status === 'Pending' && (
+                    <div className="flex flex-col sm:flex-row gap-2 w-full">
+                      <button
+                        onClick={() => { setActiveTab('manual_payment'); setIsOrderDetailsOpen(false); }}
+                        className="flex-1 bg-emerald-100 text-emerald-700 font-bold py-3 rounded-xl hover:bg-emerald-200 transition-colors shadow-lg shadow-emerald-50"
+                      >
+                        {t('bankTransfer')}
+                      </button>
+                      <button
+                        onClick={() => handlePayWithFiuu(selectedOrder.id, 'tng')}
+                        className="flex-1 bg-[#0055A4] text-white font-bold py-3 rounded-xl hover:bg-[#004488] transition-colors shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
+                      >
+                        TNG
+                      </button>
+                      <button
+                        onClick={() => handlePayWithFiuu(selectedOrder.id, 'all')}
+                        className="flex-1 bg-neutral-200 text-neutral-600 font-bold py-3 rounded-xl hover:bg-neutral-300 transition-colors shadow-lg shadow-neutral-100"
+                      >
+                        {t('others')}
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setIsOrderDetailsOpen(false)}
+                    className="w-full bg-white border border-neutral-200 text-neutral-600 font-semibold py-3 rounded-xl hover:bg-neutral-50 transition-colors"
+                  >
+                    {t('close')}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )
+        }
+      </AnimatePresence >
       {/* Cancellation Reason Modal */}
       <AnimatePresence>
-        {isCancellationModalOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsCancellationModalOpen(false)}
-              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
-            >
-              <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
-                <h2 className="text-xl font-bold text-neutral-900">{t('cancelOrder')}</h2>
-                <button
-                  onClick={() => setIsCancellationModalOpen(false)}
-                  className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="p-6 space-y-4">
-                <p className="text-neutral-600">{t('cancelOrderPrompt')}</p>
-                <textarea
-                  className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none min-h-[100px]"
-                  placeholder={t('enterCancelReason')}
-                  value={cancellationReason}
-                  onChange={(e) => setCancellationReason(e.target.value)}
-                />
-                <div className="flex gap-3 pt-2">
+        {
+          isCancellationModalOpen && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsCancellationModalOpen(false)}
+                className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
+                  <h2 className="text-xl font-bold text-neutral-900">{t('cancelOrder')}</h2>
                   <button
                     onClick={() => setIsCancellationModalOpen(false)}
-                    className="flex-1 px-4 py-2 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
+                    className="p-2 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
                   >
-                    {t('back')}
-                  </button>
-                  <button
-                    onClick={confirmCancellation}
-                    disabled={!cancellationReason.trim()}
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 rounded-xl transition-all shadow-lg shadow-red-100 disabled:opacity-50"
-                  >
-                    {t('confirmCancel')}
+                    <X size={20} />
                   </button>
                 </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                <div className="p-6 space-y-4">
+                  <p className="text-neutral-600">{t('cancelOrderPrompt')}</p>
+                  <textarea
+                    className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 outline-none min-h-[100px]"
+                    placeholder={t('enterCancelReason')}
+                    value={cancellationReason}
+                    onChange={(e) => setCancellationReason(e.target.value)}
+                  />
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => setIsCancellationModalOpen(false)}
+                      className="flex-1 px-4 py-2 border border-neutral-200 text-neutral-600 font-semibold rounded-xl hover:bg-neutral-50 transition-colors"
+                    >
+                      {t('back')}
+                    </button>
+                    <button
+                      onClick={confirmCancellation}
+                      disabled={!cancellationReason.trim()}
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 rounded-xl transition-all shadow-lg shadow-red-100 disabled:opacity-50"
+                    >
+                      {t('confirmCancel')}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )
+        }
+      </AnimatePresence >
 
       <AnimatePresence>
         {isHistoryOpen && (
@@ -3249,6 +3454,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-    </div>
+    </div >
   );
 }

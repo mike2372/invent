@@ -21,6 +21,12 @@ export const translations: Record<Language, Record<string, string>> = {
         clients: 'Clients',
         myDashboard: 'My Dashboard',
         myOrders: 'My Orders',
+        settings: 'Settings',
+        bankTransfer: 'Bank Transfer',
+        bankName: 'Bank Name',
+        accountNumber: 'Account Number',
+        accountHolder: 'Account Holder',
+        manualTransferDesc: 'Please transfer to the following account and upload receipt.',
         logout: 'Logout',
 
         // Dashboard
@@ -228,6 +234,12 @@ export const translations: Record<Language, Record<string, string>> = {
         clients: '客户',
         myDashboard: '我的仪表板',
         myOrders: '我的订单',
+        settings: '设置',
+        bankTransfer: '银行转账',
+        bankName: '银行名称',
+        accountNumber: '账号',
+        accountHolder: '持卡人姓名',
+        manualTransferDesc: '请转账至以下账户并上传收据。',
         logout: '退出登录',
 
         welcomeBack: '欢迎回来',
@@ -422,6 +434,12 @@ export const translations: Record<Language, Record<string, string>> = {
         clients: 'Pelanggan',
         myDashboard: 'Papan Pemuka Saya',
         myOrders: 'Pesanan Saya',
+        settings: 'Tetapan',
+        bankTransfer: 'Pindahan Bank',
+        bankName: 'Nama Bank',
+        accountNumber: 'Nombor Akaun',
+        accountHolder: 'Pemilik Akaun',
+        manualTransferDesc: 'Sila pindahkan ke akaun berikut dan muat naik resit.',
         logout: 'Log Keluar',
 
         welcomeBack: 'Selamat kembali',
