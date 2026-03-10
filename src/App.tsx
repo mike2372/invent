@@ -978,28 +978,17 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 w-full">
-              <button
-                type="button"
-                onClick={() => handleGuestLogin('admin')}
-                disabled={loading}
-                className="flex flex-col items-center gap-2 p-4 rounded-xl border border-neutral-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all group disabled:opacity-50"
-              >
-                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                  <ShieldCheck size={20} />
-                </div>
-                <span className="text-xs font-bold text-neutral-700">{t('guestAdmin')}</span>
-              </button>
+            <div className="w-full">
               <button
                 type="button"
                 onClick={() => handleGuestLogin('client')}
                 disabled={loading}
-                className="flex flex-col items-center gap-2 p-4 rounded-xl border border-neutral-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all group disabled:opacity-50"
+                className="w-full flex flex-col items-center gap-2 p-6 rounded-xl border border-neutral-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all group disabled:opacity-50"
               >
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                  <UserCheck size={20} />
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <UserCheck size={24} />
                 </div>
-                <span className="text-xs font-bold text-neutral-700">{t('guestClient')}</span>
+                <span className="text-sm font-bold text-neutral-700">{t('guestClient')}</span>
               </button>
             </div>
           </div>

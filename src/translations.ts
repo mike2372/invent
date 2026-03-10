@@ -218,7 +218,6 @@ export const translations: Record<Language, Record<string, string>> = {
         language: 'Language',
         productList: 'Product List',
         orSignInAs: 'Or sign in as',
-        guestAdmin: 'Guest Admin',
         guestClient: 'Guest Client',
     },
     zh: {
@@ -422,7 +421,6 @@ export const translations: Record<Language, Record<string, string>> = {
         language: '语言',
         productList: '产品列表',
         orSignInAs: '或以以下身份登录',
-        guestAdmin: '访客管理员',
         guestClient: '访客客户',
     },
     ms: {
@@ -626,7 +624,6 @@ export const translations: Record<Language, Record<string, string>> = {
         language: 'Bahasa',
         productList: 'Senarai Produk',
         orSignInAs: 'Atau log masuk sebagai',
-        guestAdmin: 'Admin Tetamu',
         guestClient: 'Pelanggan Tetamu',
     }
 };
