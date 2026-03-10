@@ -1,0 +1,24 @@
+{
+    "rewrites": [
+        {
+            "source": "/api/login",
+            "destination": "/api/login"
+        },
+        {
+            "source": "/api/guest-login",
+            "destination": "/api/guest-login"
+        },
+        {
+            "source": "/api/users/:id*",
+            "destination": "/api/users?id=:id"
+        },
+        {
+            "source": "/api/products/:id*",
+            "destination": "/api/products?id=:id"
+        },
+        {
+            "source": "/api/orders/:id*",
+            "destination": "/api/orders?id=:id"
+        }
+    ]
+}
