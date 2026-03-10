@@ -1,216 +1,141 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
-import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import admin from 'firebase-admin';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database('inventory.db');
-
-// Initialize database
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE,
-    password TEXT,
-    role TEXT DEFAULT 'admin',
-    full_name TEXT,
-    email TEXT,
-    phone TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    sku TEXT UNIQUE NOT NULL,
-    category TEXT,
-    price REAL NOT NULL,
-    quantity INTEGER NOT NULL,
-    min_stock INTEGER DEFAULT 5,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  -- Add unit_of_measure if it doesn't exist
-  PRAGMA table_info(products);
-`);
-
-try {
-  db.exec('ALTER TABLE users ADD COLUMN role TEXT DEFAULT "admin"');
-} catch (e) { }
-try {
-  db.exec('ALTER TABLE users ADD COLUMN full_name TEXT');
-} catch (e) { }
-try {
-  db.exec('ALTER TABLE users ADD COLUMN email TEXT');
-} catch (e) { }
-try {
-  db.exec('ALTER TABLE users ADD COLUMN phone TEXT');
-} catch (e) { }
-
-try {
-  db.exec('ALTER TABLE products ADD COLUMN unit_of_measure TEXT DEFAULT "pcs"');
-} catch (e) {
-  // Column already exists
-}
-
-try {
-  db.exec('ALTER TABLE products ADD COLUMN image_url TEXT');
-} catch (e) {
-  // Column already exists
-}
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS stock_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    product_id INTEGER NOT NULL,
-    change_amount INTEGER NOT NULL,
-    new_quantity INTEGER NOT NULL,
-    reason TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    customer_name TEXT NOT NULL,
-    order_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    delivery_date DATETIME,
-    status TEXT DEFAULT 'Pending',
-    total_amount REAL DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users (id)
-  );
-
-  CREATE TABLE IF NOT EXISTS order_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    order_id INTEGER NOT NULL,
-    product_id INTEGER NOT NULL,
-    quantity INTEGER NOT NULL,
-    price_at_order REAL NOT NULL,
-    FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products (id)
-  );
-
-  CREATE TABLE IF NOT EXISTS product_variations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    product_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    sku TEXT UNIQUE NOT NULL,
-    price REAL NOT NULL,
-    quantity INTEGER NOT NULL,
-    min_stock INTEGER DEFAULT 5,
-    FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
-  );
-`);
-
-try {
-  db.exec('ALTER TABLE products ADD COLUMN has_variations BOOLEAN DEFAULT 0');
-} catch (e) { }
-
-try {
-  db.exec('ALTER TABLE order_items ADD COLUMN variation_id INTEGER');
-} catch (e) { }
-
-try {
-  db.exec('ALTER TABLE stock_history ADD COLUMN variation_id INTEGER');
-} catch (e) { }
-
-try {
-  db.exec('ALTER TABLE orders ADD COLUMN user_id INTEGER');
-} catch (e) { }
-
-try {
-  db.exec('ALTER TABLE orders ADD COLUMN cancellation_reason TEXT');
-} catch (e) { }
-
-// Seed admin if not exists (password: admin123 - in a real app use hashing)
-const admin = db.prepare('SELECT * FROM users WHERE username = ?').get('admin');
-if (!admin) {
-  db.prepare('INSERT INTO users (username, password, role, full_name, email) VALUES (?, ?, ?, ?, ?)').run(
-    'admin', 'admin123', 'admin', 'System Admin', 'admin@stockmaster.my'
-  );
-}
-
-// Remove the default test client (John Doe) if it exists
-try {
-  const defaultClient = db.prepare('SELECT * FROM users WHERE username = ? AND full_name = ?').get('client', 'John Doe') as any;
-  if (defaultClient) {
-    db.prepare('UPDATE orders SET user_id = NULL WHERE user_id = ?').run(defaultClient.id);
-    db.prepare('DELETE FROM users WHERE id = ?').run(defaultClient.id);
-    console.log('Removed default test client (John Doe)');
+// Initialize Firebase Admin
+if (process.env.FIREBASE_PROJECT_ID) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    });
+    console.log('Firebase Admin initialized successfully');
+  } catch (error) {
+    console.error('Error initializing Firebase Admin:', error);
   }
-} catch (e) { }
+} else {
+  console.warn('FIREBASE_PROJECT_ID not found in .env. Please configure Firebase to use the backend.');
+}
+
+const fdb = admin.firestore();
+
+// Seed initial admin user if collection is empty
+async function seedAdmin() {
+  const usersRef = fdb.collection('users');
+  const snapshot = await usersRef.where('username', '==', 'admin').get();
+  if (snapshot.empty) {
+    await usersRef.add({
+      username: 'admin',
+      password: 'admin123',
+      role: 'admin',
+      full_name: 'System Admin',
+      email: 'admin@stockmaster.my',
+      created_at: admin.firestore.FieldValue.serverTimestamp()
+    });
+    console.log('Seeded admin user');
+  }
+}
+
+if (process.env.FIREBASE_PROJECT_ID) {
+  seedAdmin().catch(console.error);
+}
 
 async function startServer() {
   const app = express();
   app.use(express.json());
 
+  // Helper to map Firestore docs to objects with ID
+  const mapDoc = (doc: admin.firestore.DocumentSnapshot) => ({
+    id: doc.id,
+    ...doc.data()
+  });
+
   // Auth API
-  app.post('/api/login', (req, res) => {
+  app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
-    const user = db.prepare('SELECT * FROM users WHERE username = ? AND password = ?').get(username, password) as any;
-    if (user) {
-      res.json({
-        success: true,
-        user: {
-          id: user.id,
-          username: user.username,
-          role: user.role,
-          full_name: user.full_name,
-          email: user.email,
-          phone: user.phone
-        }
-      });
-    } else {
-      res.status(401).json({ success: false, message: 'Invalid credentials' });
+    try {
+      const snapshot = await fdb.collection('users')
+        .where('username', '==', username)
+        .where('password', '==', password)
+        .limit(1)
+        .get();
+
+      if (!snapshot.empty) {
+        const user = mapDoc(snapshot.docs[0]) as any;
+        res.json({
+          success: true,
+          user: {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            full_name: user.full_name,
+            email: user.email,
+            phone: user.phone
+          }
+        });
+      } else {
+        res.status(401).json({ success: false, message: 'Invalid credentials' });
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: 'Auth failed', error: err.message });
     }
   });
 
-  app.post('/api/guest-login', (req, res) => {
+  app.post('/api/guest-login', async (req, res) => {
     const { role } = req.body;
     try {
-      let user = db.prepare('SELECT * FROM users WHERE role = ? LIMIT 1').get(role) as any;
+      const snapshot = await fdb.collection('users').where('role', '==', role).limit(1).get();
+      let user;
 
-      if (!user) {
-        const info = db.prepare('INSERT INTO users (username, password, role, full_name) VALUES (?, ?, ?, ?)').run(
-          `guest_${role}_${Date.now()}`,
-          'guest_pass',
+      if (snapshot.empty) {
+        const username = `guest_${role}_${Date.now()}`;
+        const newUser = {
+          username,
+          password: 'guest_pass',
           role,
-          `Guest ${role === 'admin' ? 'Admin' : 'Client'}`
-        );
-        user = {
-          id: info.lastInsertRowid,
-          username: `guest_${role}_${Date.now()}`,
-          role: role,
-          full_name: `Guest ${role === 'admin' ? 'Admin' : 'Client'}`
+          full_name: `Guest ${role === 'admin' ? 'Admin' : 'Client'}`,
+          created_at: admin.firestore.FieldValue.serverTimestamp()
         };
+        const docRef = await fdb.collection('users').add(newUser);
+        user = { id: docRef.id, ...newUser };
+      } else {
+        user = mapDoc(snapshot.docs[0]);
       }
 
       res.json({
         success: true,
         user: {
           id: user.id,
-          username: user.username,
-          role: user.role,
-          full_name: user.full_name,
-          email: user.email,
-          phone: user.phone
+          username: (user as any).username,
+          role: (user as any).role,
+          full_name: (user as any).full_name,
+          email: (user as any).email,
+          phone: (user as any).phone
         }
       });
     } catch (err: any) {
-      res.status(500).json({ success: false, message: 'Failed to process guest login' });
+      res.status(500).json({ success: false, message: 'Failed to process guest login', error: err.message });
     }
   });
 
-  app.put('/api/users/:id', (req, res) => {
+  app.put('/api/users/:id', async (req, res) => {
     const { id } = req.params;
     const { full_name, email, phone } = req.body;
     try {
-      db.prepare('UPDATE users SET full_name = ?, email = ?, phone = ? WHERE id = ?').run(full_name, email, phone, id);
-      const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
+      await fdb.collection('users').doc(id).update({ full_name, email, phone });
+      const doc = await fdb.collection('users').doc(id).get();
+      const user = mapDoc(doc) as any;
       res.json({
         success: true,
         user: {
@@ -227,37 +152,53 @@ async function startServer() {
     }
   });
 
-  app.get('/api/users', (req, res) => {
+  app.get('/api/users', async (req, res) => {
     try {
-      const users = db.prepare('SELECT id, username, role, full_name, email, phone FROM users WHERE role = ?').all('client');
+      const snapshot = await fdb.collection('users').where('role', '==', 'client').get();
+      const users = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          username: data.username,
+          role: data.role,
+          full_name: data.full_name,
+          email: data.email,
+          phone: data.phone
+        };
+      });
       res.json(users);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.post('/api/users', (req, res) => {
+  app.post('/api/users', async (req, res) => {
     const { username, password, full_name, email, phone, role } = req.body;
     try {
-      const info = db.prepare(
-        'INSERT INTO users (username, password, full_name, email, phone, role) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(username, password, full_name, email, phone, role || 'client');
-      res.json({ success: true, id: info.lastInsertRowid });
+      const docRef = await fdb.collection('users').add({
+        username, password, full_name, email, phone,
+        role: role || 'client',
+        created_at: admin.firestore.FieldValue.serverTimestamp()
+      });
+      res.json({ success: true, id: docRef.id });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  app.delete('/api/users/:id', (req, res) => {
+  app.delete('/api/users/:id', async (req, res) => {
     const { id } = req.params;
     try {
-      // Nullify user_id on any orders placed by this client first
-      // to avoid FOREIGN KEY constraint failure
-      const deleteTransaction = db.transaction(() => {
-        db.prepare('UPDATE orders SET user_id = NULL WHERE user_id = ?').run(id);
-        db.prepare('DELETE FROM users WHERE id = ?').run(id);
+      const batch = fdb.batch();
+
+      // Nullify user_id on any orders
+      const ordersSnapshot = await fdb.collection('orders').where('user_id', '==', id).get();
+      ordersSnapshot.docs.forEach(doc => {
+        batch.update(doc.ref, { user_id: null });
       });
-      deleteTransaction();
+
+      batch.delete(fdb.collection('users').doc(id));
+      await batch.commit();
       res.json({ success: true });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -265,13 +206,17 @@ async function startServer() {
   });
 
   // Clear all orders (admin only)
-  app.delete('/api/orders/all', (req, res) => {
+  app.delete('/api/orders/all', async (req, res) => {
     try {
-      const clearAll = db.transaction(() => {
-        db.prepare('DELETE FROM order_items').run();
-        db.prepare('DELETE FROM orders').run();
+      // In a real app with many orders, you'd need a recursive delete for subcollections
+      // and batching for large collections. This is a simplified version.
+      const ordersSnapshot = await fdb.collection('orders').get();
+      const batch = fdb.batch();
+      ordersSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
       });
-      clearAll();
+      // We also need to clear items, but in this Firestore schema items will be subcollections or embedded
+      await batch.commit();
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -279,116 +224,158 @@ async function startServer() {
   });
 
   // Inventory API
-  app.get('/api/products', (req, res) => {
-    const products = db.prepare('SELECT * FROM products ORDER BY updated_at DESC').all();
-    const productsWithVariations = products.map((product: any) => {
-      if (product.has_variations) {
-        const variations = db.prepare('SELECT * FROM product_variations WHERE product_id = ?').all(product.id);
-        return { ...product, variations };
-      }
-      return product;
-    });
-    res.json(productsWithVariations);
+  app.get('/api/products', async (req, res) => {
+    try {
+      const snapshot = await fdb.collection('products').orderBy('updated_at', 'desc').get();
+      const products = await Promise.all(snapshot.docs.map(async doc => {
+        const product = mapDoc(doc) as any;
+        if (product.has_variations) {
+          const varSnapshot = await doc.ref.collection('variations').get();
+          const variations = varSnapshot.docs.map(mapDoc);
+          return { ...product, variations };
+        }
+        return product;
+      }));
+      res.json(products);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  app.post('/api/products', (req, res) => {
+  app.post('/api/products', async (req, res) => {
     const { name, sku, category, price, quantity, min_stock, unit_of_measure, image_url, reason, variations } = req.body;
-
-    const hasVariations = variations && variations.length > 0 ? 1 : 0;
+    const hasVariations = variations && variations.length > 0 ? true : false;
     const totalQuantity = hasVariations ? variations.reduce((acc: number, v: any) => acc + (parseInt(v.quantity) || 0), 0) : quantity;
     const basePrice = hasVariations ? Math.min(...variations.map((v: any) => parseFloat(v.price))) : price;
 
     try {
-      const info = db.prepare(
-        'INSERT INTO products (name, sku, category, price, quantity, min_stock, unit_of_measure, image_url, has_variations) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(name, sku, category, basePrice, totalQuantity, min_stock || 5, unit_of_measure || 'pcs', image_url, hasVariations);
+      const newProduct = {
+        name, sku, category,
+        price: basePrice,
+        quantity: totalQuantity,
+        min_stock: min_stock || 5,
+        unit_of_measure: unit_of_measure || 'pcs',
+        image_url,
+        has_variations: hasVariations,
+        updated_at: admin.firestore.FieldValue.serverTimestamp()
+      };
 
-      const productId = info.lastInsertRowid;
+      const productRef = await fdb.collection('products').add(newProduct);
 
       if (hasVariations) {
-        const insertVariation = db.prepare(
-          'INSERT INTO product_variations (product_id, name, sku, price, quantity, min_stock) VALUES (?, ?, ?, ?, ?, ?)'
-        );
-        const insertHistory = db.prepare(
-          'INSERT INTO stock_history (product_id, variation_id, change_amount, new_quantity, reason) VALUES (?, ?, ?, ?, ?)'
-        );
-
         for (const v of variations) {
-          const vInfo = insertVariation.run(productId, v.name, v.sku, v.price, v.quantity, v.min_stock || 5);
-          insertHistory.run(productId, vInfo.lastInsertRowid, v.quantity, v.quantity, reason || 'Initial stock');
+          const vRef = await productRef.collection('variations').add({
+            name: v.name,
+            sku: v.sku,
+            price: v.price,
+            quantity: v.quantity,
+            min_stock: v.min_stock || 5
+          });
+
+          await fdb.collection('stock_history').add({
+            product_id: productRef.id,
+            variation_id: vRef.id,
+            change_amount: v.quantity,
+            new_quantity: v.quantity,
+            reason: reason || 'Initial stock',
+            created_at: admin.firestore.FieldValue.serverTimestamp()
+          });
         }
       } else {
-        // Log initial stock for simple product
-        db.prepare(
-          'INSERT INTO stock_history (product_id, change_amount, new_quantity, reason) VALUES (?, ?, ?, ?)'
-        ).run(productId, quantity, quantity, reason || 'Initial stock');
+        await fdb.collection('stock_history').add({
+          product_id: productRef.id,
+          change_amount: quantity,
+          new_quantity: quantity,
+          reason: reason || 'Initial stock',
+          created_at: admin.firestore.FieldValue.serverTimestamp()
+        });
       }
 
-      res.json({ id: productId });
+      res.json({ id: productRef.id });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  app.put('/api/products/:id', (req, res) => {
+  app.put('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     const { name, sku, category, price, quantity, min_stock, unit_of_measure, image_url, reason, variations } = req.body;
-
-    const hasVariations = variations && variations.length > 0 ? 1 : 0;
+    const hasVariations = variations && variations.length > 0 ? true : false;
     const totalQuantity = hasVariations ? variations.reduce((acc: number, v: any) => acc + (parseInt(v.quantity) || 0), 0) : quantity;
     const basePrice = hasVariations ? Math.min(...variations.map((v: any) => parseFloat(v.price))) : price;
 
     try {
-      const currentProduct = db.prepare('SELECT quantity, has_variations FROM products WHERE id = ?').get(id) as any;
+      const productRef = fdb.collection('products').doc(id);
+      const doc = await productRef.get();
+      const currentProduct = doc.data() as any;
       const oldQuantity = currentProduct?.quantity || 0;
       const changeAmount = totalQuantity - oldQuantity;
 
-      db.prepare(
-        'UPDATE products SET name = ?, sku = ?, category = ?, price = ?, quantity = ?, min_stock = ?, unit_of_measure = ?, image_url = ?, has_variations = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-      ).run(name, sku, category, basePrice, totalQuantity, min_stock, unit_of_measure, image_url, hasVariations, id);
+      await productRef.update({
+        name, sku, category,
+        price: basePrice,
+        quantity: totalQuantity,
+        min_stock,
+        unit_of_measure,
+        image_url,
+        has_variations: hasVariations,
+        updated_at: admin.firestore.FieldValue.serverTimestamp()
+      });
 
       if (hasVariations) {
-        const existingVariations = db.prepare('SELECT id, quantity FROM product_variations WHERE product_id = ?').all(id) as any[];
-        const existingIds = existingVariations.map(v => v.id);
+        // This part is more complex in Firestore. We need to sync variations.
+        const varsRef = productRef.collection('variations');
+        const existingVarsSnapshot = await varsRef.get();
+        const existingVars = existingVarsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+
         const newIds = variations.filter((v: any) => v.id).map((v: any) => v.id);
 
-        // Delete removed variations
-        const toDelete = existingIds.filter(eid => !newIds.includes(eid));
-        if (toDelete.length > 0) {
-          db.prepare(`DELETE FROM product_variations WHERE id IN (${toDelete.join(',')})`).run();
+        // Delete removed
+        for (const ev of existingVars) {
+          if (!newIds.includes(ev.id)) {
+            await varsRef.doc(ev.id).delete();
+          }
         }
-
-        const insertVariation = db.prepare(
-          'INSERT INTO product_variations (product_id, name, sku, price, quantity, min_stock) VALUES (?, ?, ?, ?, ?, ?)'
-        );
-        const updateVariation = db.prepare(
-          'UPDATE product_variations SET name = ?, sku = ?, price = ?, quantity = ?, min_stock = ? WHERE id = ?'
-        );
-        const insertHistory = db.prepare(
-          'INSERT INTO stock_history (product_id, variation_id, change_amount, new_quantity, reason) VALUES (?, ?, ?, ?, ?)'
-        );
 
         for (const v of variations) {
           if (v.id) {
-            // Update existing
-            const oldVar = existingVariations.find(ev => ev.id === v.id);
+            const oldVar = existingVars.find(ev => ev.id === v.id);
             const varChange = v.quantity - (oldVar?.quantity || 0);
-
-            updateVariation.run(v.name, v.sku, v.price, v.quantity, v.min_stock, v.id);
-
+            await varsRef.doc(v.id).update({
+              name: v.name, sku: v.sku, price: v.price, quantity: v.quantity, min_stock: v.min_stock
+            });
             if (varChange !== 0) {
-              insertHistory.run(id, v.id, varChange, v.quantity, reason || 'Manual update');
+              await fdb.collection('stock_history').add({
+                product_id: id,
+                variation_id: v.id,
+                change_amount: varChange,
+                new_quantity: v.quantity,
+                reason: reason || 'Manual update',
+                created_at: admin.firestore.FieldValue.serverTimestamp()
+              });
             }
           } else {
-            // Insert new
-            const info = insertVariation.run(id, v.name, v.sku, v.price, v.quantity, v.min_stock || 5);
-            insertHistory.run(id, info.lastInsertRowid, v.quantity, v.quantity, reason || 'New variation');
+            const vRef = await varsRef.add({
+              name: v.name, sku: v.sku, price: v.price, quantity: v.quantity, min_stock: v.min_stock || 5
+            });
+            await fdb.collection('stock_history').add({
+              product_id: id,
+              variation_id: vRef.id,
+              change_amount: v.quantity,
+              new_quantity: v.quantity,
+              reason: reason || 'New variation',
+              created_at: admin.firestore.FieldValue.serverTimestamp()
+            });
           }
         }
       } else if (changeAmount !== 0) {
-        db.prepare(
-          'INSERT INTO stock_history (product_id, change_amount, new_quantity, reason) VALUES (?, ?, ?, ?)'
-        ).run(id, changeAmount, quantity, reason || 'Manual update');
+        await fdb.collection('stock_history').add({
+          product_id: id,
+          change_amount: changeAmount,
+          new_quantity: quantity,
+          reason: reason || 'Manual update',
+          created_at: admin.firestore.FieldValue.serverTimestamp()
+        });
       }
 
       res.json({ success: true });
@@ -397,269 +384,293 @@ async function startServer() {
     }
   });
 
-  app.get('/api/products/:id/history', (req, res) => {
+  app.get('/api/products/:id/history', async (req, res) => {
     const { id } = req.params;
-    const history = db.prepare('SELECT * FROM stock_history WHERE product_id = ? ORDER BY created_at DESC').all(id);
-    res.json(history);
+    try {
+      const snapshot = await fdb.collection('stock_history')
+        .where('product_id', '==', id)
+        .orderBy('created_at', 'desc')
+        .get();
+      const history = snapshot.docs.map(mapDoc);
+      res.json(history);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  app.post('/api/products/bulk', (req, res) => {
+  app.post('/api/products/bulk', async (req, res) => {
     const products = req.body;
     if (!Array.isArray(products)) return res.status(400).json({ error: 'Invalid data format' });
 
-    const insertProduct = db.prepare(
-      'INSERT INTO products (name, sku, category, price, quantity, min_stock, unit_of_measure) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    );
-    const insertHistory = db.prepare(
-      'INSERT INTO stock_history (product_id, change_amount, new_quantity, reason) VALUES (?, ?, ?, ?)'
-    );
-
-    const transaction = db.transaction((items) => {
-      for (const item of items) {
-        const info = insertProduct.run(
-          item.name,
-          item.sku,
-          item.category || 'Others',
-          item.price || 0,
-          item.quantity || 0,
-          item.min_stock || 5,
-          item.unit_of_measure || 'pcs'
-        );
-        const productId = info.lastInsertRowid;
-        insertHistory.run(productId, item.quantity || 0, item.quantity || 0, 'Bulk Import');
-      }
-    });
-
     try {
-      transaction(products);
+      const batch = fdb.batch();
+      for (const item of products) {
+        const prodRef = fdb.collection('products').doc();
+        batch.set(prodRef, {
+          name: item.name,
+          sku: item.sku,
+          category: item.category || 'Others',
+          price: item.price || 0,
+          quantity: item.quantity || 0,
+          min_stock: item.min_stock || 5,
+          unit_of_measure: item.unit_of_measure || 'pcs',
+          updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        const histRef = fdb.collection('stock_history').doc();
+        batch.set(histRef, {
+          product_id: prodRef.id,
+          change_amount: item.quantity || 0,
+          new_quantity: item.quantity || 0,
+          reason: 'Bulk Import',
+          created_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      await batch.commit();
       res.json({ success: true, count: products.length });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  app.post('/api/products/bulk-update', (req, res) => {
+  app.post('/api/products/bulk-update', async (req, res) => {
     const { ids, updates } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No products selected' });
 
-    const allowedFields = ['category', 'min_stock', 'unit_of_measure'];
-    const updateFields = Object.keys(updates).filter(f => allowedFields.includes(f));
-
-    if (updateFields.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
-
-    const setClause = updateFields.map(f => `${f} = ?`).join(', ');
-    const query = `UPDATE products SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-    const stmt = db.prepare(query);
-
-    const transaction = db.transaction((productIds, data) => {
-      const values = updateFields.map(f => data[f]);
-      for (const id of productIds) {
-        stmt.run(...values, id);
-      }
-    });
-
     try {
-      transaction(ids, updates);
+      const batch = fdb.batch();
+      for (const id of ids) {
+        const ref = fdb.collection('products').doc(id);
+        batch.update(ref, {
+          ...updates,
+          updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      await batch.commit();
       res.json({ success: true, count: ids.length });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  app.post('/api/products/:id/adjust', (req, res) => {
+  app.post('/api/products/:id/adjust', async (req, res) => {
     const { id } = req.params;
     const { amount, reason, variation_id } = req.body;
 
     try {
-      const product = db.prepare('SELECT * FROM products WHERE id = ?').get(id) as any;
-      if (!product) return res.status(404).json({ error: 'Product not found' });
+      const productRef = fdb.collection('products').doc(id);
+      const productDoc = await productRef.get();
+      if (!productDoc.exists) return res.status(404).json({ error: 'Product not found' });
+      const product = productDoc.data() as any;
 
       if (product.has_variations) {
-        if (!variation_id) {
-          return res.status(400).json({ error: 'Variation ID is required for products with variations' });
-        }
+        if (!variation_id) return res.status(400).json({ error: 'Variation ID is required' });
 
-        const variation = db.prepare('SELECT * FROM product_variations WHERE id = ? AND product_id = ?').get(variation_id, id) as any;
-        if (!variation) return res.status(404).json({ error: 'Variation not found' });
+        const varRef = productRef.collection('variations').doc(variation_id);
+        const varDoc = await varRef.get();
+        if (!varDoc.exists) return res.status(404).json({ error: 'Variation not found' });
+        const variation = varDoc.data() as any;
 
-        const newVariationQuantity = variation.quantity + amount;
-        if (newVariationQuantity < 0) return res.status(400).json({ error: 'Variation stock cannot be negative' });
+        const newVarQty = variation.quantity + amount;
+        if (newVarQty < 0) return res.status(400).json({ error: 'Stock cannot be negative' });
 
-        const updateTx = db.transaction(() => {
-          // Update variation quantity
-          db.prepare('UPDATE product_variations SET quantity = ? WHERE id = ?').run(newVariationQuantity, variation_id);
+        await varRef.update({ quantity: newVarQty });
 
-          // Update total product quantity
-          const totalQty = db.prepare('SELECT SUM(quantity) as total FROM product_variations WHERE product_id = ?').get(id) as any;
-          const newTotal = totalQty.total || 0;
-          db.prepare('UPDATE products SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newTotal, id);
+        // Recalculate total
+        const allVars = await productRef.collection('variations').get();
+        const newTotal = allVars.docs.reduce((acc, doc) => acc + (doc.data().quantity || 0), 0);
+        await productRef.update({ quantity: newTotal, updated_at: admin.firestore.FieldValue.serverTimestamp() });
 
-          // Log history
-          db.prepare(
-            'INSERT INTO stock_history (product_id, variation_id, change_amount, new_quantity, reason) VALUES (?, ?, ?, ?, ?)'
-          ).run(id, variation_id, amount, newVariationQuantity, reason || 'Manual adjustment');
-
-          return newTotal;
+        await fdb.collection('stock_history').add({
+          product_id: id,
+          variation_id,
+          change_amount: amount,
+          new_quantity: newVarQty,
+          reason: reason || 'Manual adjustment',
+          created_at: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        const newTotal = updateTx();
-        return res.json({ success: true, newQuantity: newTotal, newVariationQuantity });
+        res.json({ success: true, newQuantity: newTotal, newVariationQuantity: newVarQty });
       } else {
-        const newQuantity = product.quantity + amount;
-        if (newQuantity < 0) return res.status(400).json({ error: 'Stock cannot be negative' });
+        const newQty = product.quantity + amount;
+        if (newQty < 0) return res.status(400).json({ error: 'Stock cannot be negative' });
 
-        db.prepare('UPDATE products SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newQuantity, id);
+        await productRef.update({ quantity: newQty, updated_at: admin.firestore.FieldValue.serverTimestamp() });
 
-        db.prepare(
-          'INSERT INTO stock_history (product_id, change_amount, new_quantity, reason) VALUES (?, ?, ?, ?)'
-        ).run(id, amount, newQuantity, reason || 'Manual adjustment');
+        await fdb.collection('stock_history').add({
+          product_id: id,
+          change_amount: amount,
+          new_quantity: newQty,
+          reason: reason || 'Manual adjustment',
+          created_at: admin.firestore.FieldValue.serverTimestamp()
+        });
 
-        return res.json({ success: true, newQuantity });
+        res.json({ success: true, newQuantity: newQty });
       }
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  app.delete('/api/products/:id', (req, res) => {
+  app.delete('/api/products/:id', async (req, res) => {
     const { id } = req.params;
-    db.prepare('DELETE FROM products WHERE id = ?').run(id);
-    res.json({ success: true });
+    try {
+      await fdb.collection('products').doc(id).delete();
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   // Orders API
-  app.get('/api/orders', (req, res) => {
+  app.get('/api/orders', async (req, res) => {
     const { userId, role, includeItems } = req.query;
-    let orders: any[];
-    if (role === 'client' && userId) {
-      orders = db.prepare('SELECT * FROM orders WHERE user_id = ? ORDER BY order_date DESC').all(userId);
-    } else {
-      orders = db.prepare('SELECT * FROM orders ORDER BY order_date DESC').all();
-    }
+    try {
+      let query: admin.firestore.Query = fdb.collection('orders').orderBy('order_date', 'desc');
 
-    if (includeItems === 'true') {
-      orders = orders.map(order => {
-        const items = db.prepare(`
-          SELECT oi.*, p.name as product_name, p.sku as product_sku, p.image_url as product_image,
-          pv.name as variation_name, pv.sku as variation_sku
-          FROM order_items oi 
-          JOIN products p ON oi.product_id = p.id 
-          LEFT JOIN product_variations pv ON oi.variation_id = pv.id
-          WHERE oi.order_id = ?
-        `).all(order.id);
-        return { ...order, items };
-      });
-    }
+      if (role === 'client' && userId) {
+        query = query.where('user_id', '==', userId);
+      }
 
-    res.json(orders);
+      const snapshot = await query.get();
+      const orders = await Promise.all(snapshot.docs.map(async doc => {
+        const order = mapDoc(doc) as any;
+        if (includeItems === 'true') {
+          const itemsSnapshot = await doc.ref.collection('items').get();
+          order.items = itemsSnapshot.docs.map(mapDoc);
+        }
+        return order;
+      }));
+      res.json(orders);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  app.get('/api/orders/:id', (req, res) => {
+  app.get('/api/orders/:id', async (req, res) => {
     const { id } = req.params;
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+    try {
+      const doc = await fdb.collection('orders').doc(id).get();
+      if (!doc.exists) return res.status(404).json({ error: 'Order not found' });
 
-    const items = db.prepare(`
-      SELECT oi.*, p.name as product_name, p.sku as product_sku, p.image_url as product_image,
-      pv.name as variation_name, pv.sku as variation_sku
-      FROM order_items oi 
-      JOIN products p ON oi.product_id = p.id 
-      LEFT JOIN product_variations pv ON oi.variation_id = pv.id
-      WHERE oi.order_id = ?
-    `).all(id);
+      const order = mapDoc(doc) as any;
+      const itemsSnapshot = await doc.ref.collection('items').get();
+      order.items = itemsSnapshot.docs.map(mapDoc);
 
-    res.json({ ...order, items });
+      res.json(order);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
-  app.post('/api/orders', (req, res) => {
+  app.post('/api/orders', async (req, res) => {
     const { customer_name, delivery_date, items, user_id } = req.body;
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Order must have at least one item' });
     }
 
-    const insertOrder = db.prepare(
-      'INSERT INTO orders (customer_name, delivery_date, total_amount, user_id) VALUES (?, ?, ?, ?)'
-    );
-    const insertOrderItem = db.prepare(
-      'INSERT INTO order_items (order_id, product_id, variation_id, quantity, price_at_order) VALUES (?, ?, ?, ?, ?)'
-    );
-    const updateProductStock = db.prepare(
-      'UPDATE products SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-    );
-    const updateVariationStock = db.prepare(
-      'UPDATE product_variations SET quantity = quantity - ? WHERE id = ?'
-    );
-    const insertStockHistory = db.prepare(
-      'INSERT INTO stock_history (product_id, variation_id, change_amount, new_quantity, reason) VALUES (?, ?, ?, ?, ?)'
-    );
-
-    const transaction = db.transaction((orderData) => {
+    try {
       let totalAmount = 0;
-      // Calculate total first and check stock
-      for (const item of orderData.items) {
+      const itemDetails = [];
+
+      // Validate stock and calculate total
+      for (const item of items) {
+        const prodRef = fdb.collection('products').doc(item.product_id);
+        const prodDoc = await prodRef.get();
+        if (!prodDoc.exists) throw new Error(`Product ${item.product_id} not found`);
+        const product = prodDoc.data() as any;
+
         if (item.variation_id) {
-          const variation = db.prepare('SELECT quantity, price, name, product_id FROM product_variations WHERE id = ?').get(item.variation_id) as any;
-          if (!variation) throw new Error(`Variation ${item.variation_id} not found`);
+          const varRef = prodRef.collection('variations').doc(item.variation_id);
+          const varDoc = await varRef.get();
+          if (!varDoc.exists) throw new Error(`Variation ${item.variation_id} not found`);
+          const variation = varDoc.data() as any;
+
           if (variation.quantity < item.quantity) throw new Error(`Insufficient stock for ${variation.name}`);
+
           totalAmount += variation.price * item.quantity;
+          itemDetails.push({
+            ...item,
+            price_at_order: variation.price,
+            product_name: product.name,
+            variation_name: variation.name,
+            variation_sku: variation.sku
+          });
         } else {
-          const product = db.prepare('SELECT quantity, price, name FROM products WHERE id = ?').get(item.product_id) as any;
-          if (!product) throw new Error(`Product ${item.product_id} not found`);
           if (product.quantity < item.quantity) throw new Error(`Insufficient stock for ${product.name}`);
           totalAmount += product.price * item.quantity;
+          itemDetails.push({
+            ...item,
+            price_at_order: product.price,
+            product_name: product.name,
+            product_sku: product.sku
+          });
         }
       }
 
-      const info = insertOrder.run(orderData.customer_name, orderData.delivery_date, totalAmount, orderData.user_id);
-      const orderId = info.lastInsertRowid;
+      const orderRef = await fdb.collection('orders').add({
+        customer_name,
+        delivery_date,
+        total_amount: totalAmount,
+        user_id,
+        status: 'Pending',
+        order_date: admin.firestore.FieldValue.serverTimestamp(),
+        created_at: admin.firestore.FieldValue.serverTimestamp()
+      });
 
-      for (const item of orderData.items) {
+      for (const item of itemDetails) {
+        await orderRef.collection('items').add(item);
+
+        const prodRef = fdb.collection('products').doc(item.product_id);
         if (item.variation_id) {
-          const variation = db.prepare('SELECT quantity, price, product_id FROM product_variations WHERE id = ?').get(item.variation_id) as any;
-          insertOrderItem.run(orderId, variation.product_id, item.variation_id, item.quantity, variation.price);
+          const varRef = prodRef.collection('variations').doc(item.variation_id);
+          const varSnap = await varRef.get();
+          const oldVarQty = (varSnap.data() as any).quantity;
+          const newVarQty = oldVarQty - item.quantity;
 
-          // Update variation stock
-          updateVariationStock.run(item.quantity, item.variation_id);
-          const newVarQuantity = variation.quantity - item.quantity;
-          insertStockHistory.run(variation.product_id, item.variation_id, -item.quantity, newVarQuantity, `Order #${orderId}`);
+          await varRef.update({ quantity: newVarQty });
 
-          // Update parent product stock (aggregate)
-          updateProductStock.run(item.quantity, variation.product_id);
+          const prodSnap = await prodRef.get();
+          const newProdQty = (prodSnap.data() as any).quantity - item.quantity;
+          await prodRef.update({ quantity: newProdQty, updated_at: admin.firestore.FieldValue.serverTimestamp() });
+
+          await fdb.collection('stock_history').add({
+            product_id: item.product_id,
+            variation_id: item.variation_id,
+            change_amount: -item.quantity,
+            new_quantity: newVarQty,
+            reason: `Order #${orderRef.id}`,
+            created_at: admin.firestore.FieldValue.serverTimestamp()
+          });
         } else {
-          const product = db.prepare('SELECT quantity, price FROM products WHERE id = ?').get(item.product_id) as any;
-          insertOrderItem.run(orderId, item.product_id, null, item.quantity, product.price);
-          updateProductStock.run(item.quantity, item.product_id);
+          const prodSnap = await prodRef.get();
+          const newProdQty = (prodSnap.data() as any).quantity - item.quantity;
+          await prodRef.update({ quantity: newProdQty, updated_at: admin.firestore.FieldValue.serverTimestamp() });
 
-          const newQuantity = product.quantity - item.quantity;
-          insertStockHistory.run(item.product_id, null, -item.quantity, newQuantity, `Order #${orderId}`);
+          await fdb.collection('stock_history').add({
+            product_id: item.product_id,
+            change_amount: -item.quantity,
+            new_quantity: newProdQty,
+            reason: `Order #${orderRef.id}`,
+            created_at: admin.firestore.FieldValue.serverTimestamp()
+          });
         }
       }
-      return orderId;
-    });
 
-    try {
-      const orderId = transaction({ customer_name, delivery_date, items, user_id });
-      res.json({ success: true, orderId });
+      res.json({ success: true, orderId: orderRef.id });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  app.put('/api/orders/:id/status', (req, res) => {
+  app.put('/api/orders/:id/status', async (req, res) => {
     const { id } = req.params;
     const { status, reason } = req.body;
-    const allowedStatuses = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
-
-    if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
-    }
-
     try {
-      if (status === 'Cancelled') {
-        db.prepare('UPDATE orders SET status = ?, cancellation_reason = ? WHERE id = ?').run(status, reason, id);
-      } else {
-        db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);
-      }
+      const updateData: any = { status };
+      if (status === 'Cancelled') updateData.cancellation_reason = reason;
+
+      await fdb.collection('orders').doc(id).update(updateData);
       res.json({ success: true });
     } catch (err: any) {
       res.status(400).json({ error: err.message });

@@ -83,7 +83,7 @@ export default function App() {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedIds, setSelectedIds] = useState<(string | number)[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
@@ -100,12 +100,12 @@ export default function App() {
     image_url: '',
     reason: '',
     has_variations: false,
-    variations: [] as { id?: number, name: string, sku: string, price: string, quantity: string, min_stock: string }[]
+    variations: [] as { id?: string | number, name: string, sku: string, price: string, quantity: string, min_stock: string }[]
   });
   const [orderFormData, setOrderFormData] = useState({
     customer_name: '',
     delivery_date: '',
-    items: [] as { product_id: number, variation_id?: number, quantity: number }[]
+    items: [] as { product_id: string | number, variation_id?: string | number, quantity: number }[]
   });
   const [bulkFormData, setBulkFormData] = useState({
     category: '',
@@ -131,7 +131,7 @@ export default function App() {
   });
   const [isCancellationModalOpen, setIsCancellationModalOpen] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
-  const [orderToCancel, setOrderToCancel] = useState<number | null>(null);
+  const [orderToCancel, setOrderToCancel] = useState<string | number | null>(null);
   const [clientToDelete, setClientToDelete] = useState<User | null>(null);
   const [deleteClientError, setDeleteClientError] = useState('');
   const [isConfirmClearOrders, setIsConfirmClearOrders] = useState(false);
@@ -222,7 +222,7 @@ export default function App() {
     }
   };
 
-  const fetchOrderDetails = async (id: number) => {
+  const fetchOrderDetails = async (id: string | number) => {
     try {
       const res = await fetch(`/api/orders/${id}`);
       const data = await res.json();
@@ -360,7 +360,7 @@ export default function App() {
     }
   };
 
-  const toggleSelect = (id: number) => {
+  const toggleSelect = (id: string | number) => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
@@ -539,7 +539,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateOrderStatus = async (id: number, status: string) => {
+  const handleUpdateOrderStatus = async (id: string | number, status: string) => {
     if (status === 'Cancelled') {
       setOrderToCancel(id);
       setIsCancellationModalOpen(true);
@@ -623,7 +623,7 @@ export default function App() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string | number) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
     try {
       await fetch(`/api/products/${id}`, { method: 'DELETE' });

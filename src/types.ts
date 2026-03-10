@@ -1,6 +1,6 @@
 export interface ProductVariation {
-  id: number;
-  product_id: number;
+  id: string | number;
+  product_id: string | number;
   name: string;
   sku: string;
   price: number;
@@ -9,7 +9,7 @@ export interface ProductVariation {
 }
 
 export interface Product {
-  id: number;
+  id: string | number;
   name: string;
   sku: string;
   category: string;
@@ -24,7 +24,7 @@ export interface Product {
 }
 
 export interface User {
-  id: number;
+  id: string | number;
   username: string;
   role: 'admin' | 'client';
   full_name?: string;
@@ -33,9 +33,9 @@ export interface User {
 }
 
 export interface StockHistory {
-  id: number;
-  product_id: number;
-  variation_id?: number;
+  id: string | number;
+  product_id: string | number;
+  variation_id?: string | number;
   change_amount: number;
   new_quantity: number;
   reason: string;
@@ -43,7 +43,7 @@ export interface StockHistory {
 }
 
 export interface Order {
-  id: number;
+  id: string | number;
   customer_name: string;
   order_date: string;
   delivery_date: string;
@@ -55,10 +55,10 @@ export interface Order {
 }
 
 export interface OrderItem {
-  id: number;
-  order_id: number;
-  product_id: number;
-  variation_id?: number;
+  id: string | number;
+  order_id: string | number;
+  product_id: string | number;
+  variation_id?: string | number;
   variation_name?: string;
   variation_sku?: string;
   quantity: number;
