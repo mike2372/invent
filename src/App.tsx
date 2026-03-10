@@ -135,6 +135,7 @@ export default function App() {
   const [clientToDelete, setClientToDelete] = useState<User | null>(null);
   const [deleteClientError, setDeleteClientError] = useState('');
   const [isConfirmClearOrders, setIsConfirmClearOrders] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const openProfileEdit = () => {
     setProfileFormData({
@@ -802,7 +803,132 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex">
+    <div className="min-h-screen bg-neutral-50 flex flex-col md:flex-row">
+      {/* Mobile Header */}
+      <header className="md:hidden bg-white border-b border-neutral-200 px-4 py-4 flex items-center justify-between sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
+            <Box className="text-white w-5 h-5" />
+          </div>
+          <span className="font-bold text-lg text-neutral-900">{t('stockmaster')}</span>
+        </div>
+        <button
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="p-2 text-neutral-500 hover:bg-neutral-100 rounded-xl transition-colors"
+        >
+          <div className="w-6 h-0.5 bg-neutral-600 mb-1.5 rounded-full"></div>
+          <div className="w-6 h-0.5 bg-neutral-600 mb-1.5 rounded-full"></div>
+          <div className="w-6 h-0.5 bg-neutral-600 rounded-full"></div>
+        </button>
+      </header>
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 z-50 flex">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm shadow-2xl"
+            />
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-72 bg-white h-full flex flex-col shadow-2xl"
+            >
+              <div className="p-6 border-b border-neutral-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
+                    <Box className="text-white w-5 h-5" />
+                  </div>
+                  <span className="font-bold text-lg text-neutral-900">{t('stockmaster')}</span>
+                </div>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 text-neutral-400 hover:bg-neutral-50 rounded-lg"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                {user.role === 'admin' ? (
+                  <>
+                    <button
+                      onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'dashboard' ? 'bg-emerald-50 text-emerald-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                    >
+                      <LayoutDashboard size={20} />
+                      {t('dashboard')}
+                    </button>
+                    <button
+                      onClick={() => { setActiveTab('inventory'); setIsMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'inventory' ? 'bg-emerald-50 text-emerald-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                    >
+                      <Package size={20} />
+                      <span className="flex-1 text-left">{t('inventory')}</span>
+                      {stats.lowStock > 0 && (
+                        <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                          {stats.lowStock}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => { setActiveTab('orders'); setIsMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'orders' ? 'bg-emerald-50 text-emerald-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                    >
+                      <ShoppingCart size={20} />
+                      {t('orders')}
+                    </button>
+                    <button
+                      onClick={() => { setActiveTab('clients'); setIsMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'clients' ? 'bg-emerald-50 text-emerald-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                    >
+                      <UserIcon size={20} />
+                      {t('clients')}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => { setActiveTab('client_dashboard'); setIsMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'client_dashboard' ? 'bg-emerald-50 text-emerald-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                    >
+                      <LayoutDashboard size={20} />
+                      {t('myDashboard')}
+                    </button>
+                    <button
+                      onClick={() => { setActiveTab('orders'); setIsMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${activeTab === 'orders' ? 'bg-emerald-50 text-emerald-700' : 'text-neutral-500 hover:bg-neutral-50'}`}
+                    >
+                      <ShoppingCart size={20} />
+                      {t('myOrders')}
+                    </button>
+                  </>
+                )}
+              </nav>
+
+              <div className="p-4 border-t border-neutral-100 space-y-2">
+                <div className="flex items-center justify-center gap-1 mb-2">
+                  <button onClick={() => { setLang('en'); localStorage.setItem('stockmaster_lang', 'en'); }} className={`px-3 py-1.5 text-xs rounded-lg font-semibold transition-colors ${lang === 'en' ? 'bg-emerald-100 text-emerald-700' : 'text-neutral-400 hover:text-neutral-600 hover:bg-neutral-50'}`}>EN</button>
+                  <button onClick={() => { setLang('zh'); localStorage.setItem('stockmaster_lang', 'zh'); }} className={`px-3 py-1.5 text-xs rounded-lg font-semibold transition-colors ${lang === 'zh' ? 'bg-emerald-100 text-emerald-700' : 'text-neutral-400 hover:text-neutral-600 hover:bg-neutral-50'}`}>中文</button>
+                  <button onClick={() => { setLang('ms'); localStorage.setItem('stockmaster_lang', 'ms'); }} className={`px-3 py-1.5 text-xs rounded-lg font-semibold transition-colors ${lang === 'ms' ? 'bg-emerald-100 text-emerald-700' : 'text-neutral-400 hover:text-neutral-600 hover:bg-neutral-50'}`}>BM</button>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl font-medium transition-colors"
+                >
+                  <LogOut size={20} />
+                  {t('logout')}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-neutral-200 flex flex-col hidden md:flex">
         <div className="p-6 border-bottom border-neutral-100 flex items-center gap-3">
@@ -1283,7 +1409,59 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="md:hidden grid grid-cols-1 gap-4 p-4">
+                {filteredProducts.map((product) => (
+                  <div key={product.id} className="bg-neutral-50 rounded-2xl p-4 border border-neutral-100 flex flex-col gap-4">
+                    <div className="flex gap-4">
+                      {product.image_url ? (
+                        <img src={product.image_url} alt={product.name} className="w-20 h-20 object-cover rounded-xl border border-neutral-200" />
+                      ) : (
+                        <div className="w-20 h-20 bg-white rounded-xl flex items-center justify-center border border-neutral-200 text-neutral-400">
+                          <Package size={32} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="px-2 py-0.5 bg-neutral-200 text-neutral-600 rounded-md text-[10px] font-bold uppercase">{product.category}</span>
+                          <button onClick={() => toggleSelect(product.id)} className="text-neutral-400 hover:text-emerald-600">
+                            {selectedIds.includes(product.id) ? <CheckSquare size={20} className="text-emerald-600" /> : <Square size={20} />}
+                          </button>
+                        </div>
+                        <h3 className="font-bold text-neutral-900 truncate">{product.name}</h3>
+                        <p className="text-xs text-neutral-500 font-mono mb-2">{product.sku}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-emerald-600">RM {product.price.toFixed(2)}</span>
+                          <div className="flex flex-col items-end">
+                            <span className={`font-bold ${product.quantity <= product.min_stock ? 'text-red-600' : 'text-neutral-700'}`}>{product.quantity}</span>
+                            <span className="text-[10px] text-neutral-400 uppercase font-medium">{product.unit_of_measure}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 pt-3 border-t border-neutral-200">
+                      <button onClick={() => openAdjust(product)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                        <ArrowUpDown size={20} />
+                      </button>
+                      <button onClick={() => fetchHistory(product)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                        <History size={20} />
+                      </button>
+                      <button onClick={() => openEdit(product)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
+                        <Edit2 size={20} />
+                      </button>
+                      <button onClick={() => handleDelete(product.id)} className="flex items-center justify-center p-2 bg-white rounded-xl border border-neutral-200 text-neutral-500 hover:text-red-600 hover:bg-red-50 transition-colors">
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {filteredProducts.length === 0 && (
+                  <div className="text-center py-12 text-neutral-500">
+                    {t('noProductsFound')}
+                  </div>
+                )}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wider">
