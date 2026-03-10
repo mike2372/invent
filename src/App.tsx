@@ -968,11 +968,6 @@ export default function App() {
               <button onClick={() => { setLang('zh'); localStorage.setItem('stockmaster_lang', 'zh'); }} className={`px-3 py-1 text-xs rounded-full font-semibold transition-colors ${lang === 'zh' ? 'bg-emerald-100 text-emerald-700' : 'text-neutral-400 hover:text-neutral-600'}`}>中文</button>
               <button onClick={() => { setLang('ms'); localStorage.setItem('stockmaster_lang', 'ms'); }} className={`px-3 py-1 text-xs rounded-full font-semibold transition-colors ${lang === 'ms' ? 'bg-emerald-100 text-emerald-700' : 'text-neutral-400 hover:text-neutral-600'}`}>BM</button>
             </div>
-            {!isRegisterMode && (
-              <p className="text-center text-xs text-neutral-400">
-                {t('defaultCredentials')}
-              </p>
-            )}
 
             <div className="relative my-6 w-full">
               <div className="absolute inset-0 flex items-center">
