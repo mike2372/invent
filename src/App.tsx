@@ -61,6 +61,8 @@ export default function App() {
   const t = (key: string) => translations[lang][key] || translations['en'][key] || key;
   const [selectedPeriod, setSelectedPeriod] = useState<'30_days' | '3_months' | '6_months' | '1_year' | 'all_time'>('all_time');
   const [loginData, setLoginData] = useState({ username: '', password: '' });
+  const [registerData, setRegisterData] = useState({ username: '', password: '', full_name: '', email: '', phone: '' });
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderSearch, setOrderSearch] = useState('');
@@ -470,9 +472,34 @@ export default function App() {
     }
   };
 
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(registerData)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser(data.user);
+        localStorage.setItem('stockmaster_user', JSON.stringify(data.user));
+      } else {
+        setError(data.message || 'Registration failed');
+      }
+    } catch (err) {
+      setError('Connection failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('stockmaster_user');
+    setIsRegisterMode(false);
   };
 
   const handleGuestLogin = async (role: 'admin' | 'client') => {
@@ -812,13 +839,22 @@ export default function App() {
       </div>
       <h3 className="text-xl font-bold text-neutral-900 mb-2">{t('registeredOnly')}</h3>
       <p className="text-neutral-500 max-w-sm mx-auto mb-8 tracking-tight">{t('signInToTrack')}</p>
-      <button
-        onClick={handleLogout}
-        className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-emerald-100 flex items-center gap-2 mx-auto"
-      >
-        <LogOut size={18} />
-        {t('signIn')}
-      </button>
+      <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+        <button
+          onClick={handleLogout}
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
+        >
+          <LogOut size={18} />
+          {t('signIn')}
+        </button>
+        <button
+          onClick={() => { handleLogout(); setIsRegisterMode(true); }}
+          className="w-full sm:w-auto bg-white border border-emerald-200 text-emerald-600 hover:bg-emerald-50 px-8 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+        >
+          <UserCheck size={18} />
+          {t('register')}
+        </button>
+      </div>
     </div>
   );
 
@@ -838,16 +874,70 @@ export default function App() {
             <p className="text-neutral-500 text-sm">{t('appDesc')}</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <div className="flex bg-neutral-100 p-1 rounded-xl mb-6">
+            <button
+              onClick={() => setIsRegisterMode(false)}
+              className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${!isRegisterMode ? 'bg-white text-emerald-600 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              {t('signIn')}
+            </button>
+            <button
+              onClick={() => setIsRegisterMode(true)}
+              className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${isRegisterMode ? 'bg-white text-emerald-600 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              {t('register')}
+            </button>
+          </div>
+
+          <form onSubmit={isRegisterMode ? handleRegister : handleLogin} className="space-y-4">
+            {isRegisterMode && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">{t('fullName')}</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all placeholder:text-neutral-300"
+                    placeholder="Full Name"
+                    value={registerData.full_name}
+                    onChange={e => setRegisterData({ ...registerData, full_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">{t('email')}</label>
+                  <input
+                    type="email"
+                    required
+                    className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all placeholder:text-neutral-300"
+                    placeholder="email@example.com"
+                    value={registerData.email}
+                    onChange={e => setRegisterData({ ...registerData, email: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">{t('phone')}</label>
+                  <input
+                    type="tel"
+                    required
+                    className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all placeholder:text-neutral-300"
+                    placeholder="012-3456789"
+                    value={registerData.phone}
+                    onChange={e => setRegisterData({ ...registerData, phone: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">{t('username')}</label>
               <input
                 type="text"
                 required
-                className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                placeholder="admin"
-                value={loginData.username}
-                onChange={e => setLoginData({ ...loginData, username: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all placeholder:text-neutral-300"
+                placeholder="username"
+                value={isRegisterMode ? registerData.username : loginData.username}
+                onChange={e => isRegisterMode
+                  ? setRegisterData({ ...registerData, username: e.target.value })
+                  : setLoginData({ ...loginData, username: e.target.value })}
               />
             </div>
             <div>
@@ -855,10 +945,12 @@ export default function App() {
               <input
                 type="password"
                 required
-                className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all placeholder:text-neutral-300"
                 placeholder="••••••••"
-                value={loginData.password}
-                onChange={e => setLoginData({ ...loginData, password: e.target.value })}
+                value={isRegisterMode ? registerData.password : loginData.password}
+                onChange={e => isRegisterMode
+                  ? setRegisterData({ ...registerData, password: e.target.value })
+                  : setLoginData({ ...loginData, password: e.target.value })}
               />
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -867,7 +959,7 @@ export default function App() {
               disabled={loading}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-colors shadow-lg shadow-emerald-100 disabled:opacity-50"
             >
-              {loading ? t('signingIn') : t('signIn')}
+              {loading ? (isRegisterMode ? t('registering') : t('signingIn')) : (isRegisterMode ? t('register') : t('signIn'))}
             </button>
           </form>
           <div className="mt-6 flex flex-col items-center gap-3">
@@ -876,11 +968,13 @@ export default function App() {
               <button onClick={() => { setLang('zh'); localStorage.setItem('stockmaster_lang', 'zh'); }} className={`px-3 py-1 text-xs rounded-full font-semibold transition-colors ${lang === 'zh' ? 'bg-emerald-100 text-emerald-700' : 'text-neutral-400 hover:text-neutral-600'}`}>中文</button>
               <button onClick={() => { setLang('ms'); localStorage.setItem('stockmaster_lang', 'ms'); }} className={`px-3 py-1 text-xs rounded-full font-semibold transition-colors ${lang === 'ms' ? 'bg-emerald-100 text-emerald-700' : 'text-neutral-400 hover:text-neutral-600'}`}>BM</button>
             </div>
-            <p className="text-center text-xs text-neutral-400">
-              {t('defaultCredentials')}
-            </p>
+            {!isRegisterMode && (
+              <p className="text-center text-xs text-neutral-400">
+                {t('defaultCredentials')}
+              </p>
+            )}
 
-            <div className="relative my-6">
+            <div className="relative my-6 w-full">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-neutral-200"></div>
               </div>
@@ -889,7 +983,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 w-full">
               <button
                 type="button"
                 onClick={() => handleGuestLogin('admin')}
