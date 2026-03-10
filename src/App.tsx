@@ -456,10 +456,14 @@ export default function App() {
     setError('');
     setLoading(true);
     try {
+      const trimmedData = {
+        username: loginData.username.trim(),
+        password: loginData.password.trim()
+      };
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginData)
+        body: JSON.stringify(trimmedData)
       });
       const data = await res.json();
       if (data.success) {

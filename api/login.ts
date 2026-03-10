@@ -6,7 +6,13 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
   }
 
-  const { username, password } = req.body;
+  const rawUsername = req.body.username || '';
+  const rawPassword = req.body.password || '';
+
+  // Trim whitespace and handle potential mobile auto-capitalization 
+  // (Assuming usernames are typically meant to be case-insensitive, but keeping it exact for now besides whitespace)
+  const username = rawUsername.trim();
+  const password = rawPassword.trim();
 
   try {
     const snapshot = await fdb.collection('users')
